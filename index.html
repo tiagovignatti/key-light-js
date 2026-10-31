@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Key Light</title>
+  <meta name="description" content="A fullscreen key light for video calls, with adjustable brightness, color temperature and color.">
+  <meta name="theme-color" content="#000000">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Key Light">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div id="stage" class="stage" aria-hidden="true">
+    <div id="softbox" class="softbox"></div>
+    <div id="mirror" class="mirror" hidden>
+      <video id="mirror-video" autoplay muted playsinline></video>
+    </div>
+  </div>
+
+  <div id="hud" class="hud" role="status" aria-live="polite"></div>
+
+  <section id="panel" class="panel" aria-label="Light controls">
+    <div class="panel-head">
+      <div class="modes" role="group" aria-label="Light type">
+        <button type="button" class="mode" data-mode="white" title="White light (C)">White</button>
+        <button type="button" class="mode" data-mode="color" title="Colored light (C)">Color</button>
+      </div>
+      <div class="tools">
+        <button type="button" class="tool" id="softbox-btn" aria-label="Softbox falloff" title="Softbox falloff (S)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><circle cx="12" cy="12" r="8.5" stroke-dasharray="2.2 2.8"/></svg>
+        </button>
+        <button type="button" class="tool" id="mirror-btn" aria-label="Camera mirror" title="Camera mirror (M)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+        </button>
+        <button type="button" class="tool" id="link-btn" aria-label="Share a link to this light" title="Share link">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        </button>
+        <button type="button" class="tool" id="fs-btn" aria-label="Fullscreen" title="Fullscreen (F)">
+          <svg class="icon-enter" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+          <svg class="icon-exit" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="control">
+      <label for="brightness">Brightness</label>
+      <output id="brightness-out" for="brightness"></output>
+      <input type="range" id="brightness" min="1" max="100" step="1">
+    </div>
+    <div class="control" data-mode-only="white">
+      <label for="kelvin">Temperature</label>
+      <output id="kelvin-out" for="kelvin"></output>
+      <input type="range" id="kelvin" min="2500" max="9000" step="50">
+    </div>
+    <div class="control" data-mode-only="color" hidden>
+      <label for="hue">Hue</label>
+      <output id="hue-out" for="hue"></output>
+      <input type="range" id="hue" min="0" max="359" step="1">
+    </div>
+    <div class="control" data-mode-only="color" hidden>
+      <label for="sat">Saturation</label>
+      <output id="sat-out" for="sat"></output>
+      <input type="range" id="sat" min="0" max="100" step="1">
+    </div>
+
+    <div class="presets">
+      <button type="button" class="preset" data-kelvin="3200" title="Tungsten (1)" aria-label="Tungsten, 3200K"><span class="swatch"></span><span class="preset-label">3200K</span></button>
+      <button type="button" class="preset" data-kelvin="4500" title="Neutral (2)" aria-label="Neutral, 4500K"><span class="swatch"></span><span class="preset-label">4500K</span></button>
+      <button type="button" class="preset" data-kelvin="5600" title="Daylight (3)" aria-label="Daylight, 5600K"><span class="swatch"></span><span class="preset-label">5600K</span></button>
+      <button type="button" class="preset slot" data-slot="0"><span class="swatch"></span><span class="preset-label">Save</span></button>
+      <button type="button" class="preset slot" data-slot="1"><span class="swatch"></span><span class="preset-label">Save</span></button>
+      <button type="button" class="preset slot" data-slot="2"><span class="swatch"></span><span class="preset-label">Save</span></button>
+    </div>
+
+    <p class="hint hint-touch">Swipe up or down for brightness and sideways for <span class="hint-axis">temperature</span>. Tap the light to show or hide controls.</p>
+    <p class="hint hint-keys">
+      Click the light to show or hide controls, or drag on it to adjust.
+      <span class="keys">
+        <span><kbd>↑</kbd><kbd>↓</kbd> brightness</span>
+        <span><kbd>←</kbd><kbd>→</kbd> <span class="hint-axis">temperature</span></span>
+        <span><kbd>F</kbd> fullscreen</span>
+        <span><kbd>1</kbd>–<kbd>6</kbd> presets</span>
+      </span>
+    </p>
+  </section>
+</body>
+</html>

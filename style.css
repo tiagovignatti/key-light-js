@@ -1,0 +1,465 @@
+:root {
+  /* Set from app.js. Black until then, so a dimmed light never flashes white on load. */
+  --light: #000;
+  --fade: 0ms;
+  --accent: #fff;
+  --on-accent: #1f1d1a;
+
+  --glass: rgb(31 29 26 / 0.8);
+  --ink: #f4f0e8;
+  --ink-2: rgb(244 240 232 / 0.62);
+  --well: rgb(244 240 232 / 0.09);
+  --well-hover: rgb(244 240 232 / 0.16);
+  --hairline: rgb(244 240 232 / 0.12);
+  --gutter: 16px;
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  height: 100%;
+  background-color: var(--light);
+  transition: background-color var(--fade) ease-out;
+}
+
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  color: var(--ink);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ---------- The light ---------- */
+
+.stage {
+  position: fixed;
+  inset: 0;
+  touch-action: none;
+}
+
+body.idle .stage {
+  cursor: none;
+}
+
+.softbox {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(farthest-corner at 50% 45%,
+      transparent 18%,
+      rgb(0 0 0 / 0.22) 55%,
+      rgb(0 0 0 / 0.62) 100%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.softbox.on {
+  opacity: 1;
+}
+
+.mirror {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: min(56vmin, 420px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  clip-path: circle(50%);
+  background: #000;
+  pointer-events: none;
+}
+
+.mirror video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+/* ---------- Readout ---------- */
+
+.hud {
+  position: fixed;
+  /* Inset on both sides plus auto margins centers it without capping its width at half the screen. */
+  left: var(--gutter);
+  right: var(--gutter);
+  top: max(24px, env(safe-area-inset-top));
+  z-index: 1;
+  width: fit-content;
+  margin-inline: auto;
+  padding: 9px 18px;
+  border-radius: 20px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.hud.visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------- Control panel ---------- */
+
+.panel {
+  position: fixed;
+  left: 50%;
+  bottom: max(var(--gutter), env(safe-area-inset-bottom));
+  width: min(440px, calc(100% - 2 * var(--gutter) - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  max-height: calc(100% - 2 * var(--gutter) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 18px 14px;
+  border-radius: 26px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: inset 0 0 0 1px var(--hairline), 0 24px 64px rgb(0 0 0 / 0.35);
+  touch-action: manipulation;
+  transform: translate(-50%, 0);
+  transition: opacity 0.22s ease, transform 0.22s ease, visibility 0s linear 0s;
+}
+
+.panel:not(.visible) {
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 16px);
+  transition: opacity 0.22s ease, transform 0.22s ease, visibility 0s linear 0.22s;
+}
+
+.panel button {
+  appearance: none;
+  border: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.panel button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 8px;
+  margin-bottom: 16px;
+}
+
+.modes {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--well);
+}
+
+.mode {
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.mode[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.tools {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.tool {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--well);
+}
+
+.tool svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (hover: hover) {
+  .tool:hover,
+  .preset:hover {
+    background: var(--well-hover);
+  }
+}
+
+.tool[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ---------- Sliders ---------- */
+
+.control {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  row-gap: 4px;
+  margin-bottom: 10px;
+}
+
+.control label {
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.control output {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.control input {
+  grid-column: 1 / -1;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 14px;
+  border-radius: 999px;
+  background: var(--track, var(--well));
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 14px;
+  border-radius: 999px;
+  background: var(--track, var(--well));
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: 26px;
+  height: 26px;
+  margin-top: -6px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--thumb, #fff);
+  box-shadow: 0 1px 5px rgb(0 0 0 / 0.5);
+}
+
+input[type="range"]::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 26px;
+  height: 26px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--thumb, #fff);
+  box-shadow: 0 1px 5px rgb(0 0 0 / 0.5);
+}
+
+input[type="range"]:focus {
+  outline: none;
+}
+
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 2px var(--glass), 0 0 0 4px var(--ink);
+}
+
+input[type="range"]:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 2px var(--glass), 0 0 0 4px var(--ink);
+}
+
+/* ---------- Presets ---------- */
+
+.presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 16px 0 12px;
+}
+
+.preset {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: var(--well);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.preset[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+.preset-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--swatch, transparent);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.3);
+}
+
+.slot:not(.filled) {
+  color: var(--ink-2);
+}
+
+.slot:not(.filled) .swatch {
+  box-shadow: none;
+  border: 1.5px dashed var(--ink-2);
+}
+
+/* ---------- Hints ---------- */
+
+.hint {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin-top: 6px;
+}
+
+.keys > span {
+  white-space: nowrap;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.7em;
+  margin-right: 2px;
+  padding: 0 0.35em;
+  border-radius: 5px;
+  background: var(--well);
+  box-shadow: inset 0 -1px 0 var(--hairline);
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  color: var(--ink);
+}
+
+.hint-keys {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hint-keys {
+    display: block;
+  }
+
+  .hint-touch {
+    display: none;
+  }
+}
+
+@media (max-width: 359px) {
+  .panel {
+    padding-inline: 14px;
+  }
+
+  .mode {
+    padding-inline: 11px;
+  }
+
+  .preset {
+    gap: 6px;
+    padding-inline: 8px;
+  }
+}
+
+/* Phones in landscape: keep as much of the light visible as possible. */
+@media (max-height: 460px) {
+  .panel {
+    padding-block: 12px 10px;
+  }
+
+  .panel-head {
+    margin-bottom: 8px;
+  }
+
+  .control {
+    margin-bottom: 4px;
+  }
+
+  .presets {
+    margin: 10px 0 2px;
+  }
+
+  .hint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html,
+  .softbox,
+  .hud,
+  .panel,
+  .panel:not(.visible) {
+    transition: none !important;
+  }
+}
