@@ -79,6 +79,32 @@
       <button type="button" class="preset slot" data-slot="2"><span class="swatch"></span><span class="preset-label">Save</span></button>
     </div>
 
+    <div class="dj">
+      <div class="dj-head">
+        <label class="dj-label" for="dj-btn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          DJ sync
+        </label>
+        <span class="dj-status" id="dj-status" hidden><span class="beat" id="dj-beat"></span><span id="dj-bpm"></span></span>
+        <button type="button" class="switch" id="dj-btn" role="switch" aria-checked="false" title="Sync the light to music from the microphone (D)"></button>
+      </div>
+      <div class="dj-body" id="dj-body" hidden>
+        <div class="patterns" role="group" aria-label="Pattern">
+          <button type="button" class="pattern" data-pattern="spectrum">Spectrum</button>
+          <button type="button" class="pattern" data-pattern="hop">Hop</button>
+          <button type="button" class="pattern" data-pattern="pulse">Pulse</button>
+          <button type="button" class="pattern" data-pattern="flow">Flow</button>
+          <button type="button" class="pattern" data-pattern="strobe">Strobe</button>
+        </div>
+        <p class="dj-note"><span id="dj-note"></span> <strong id="dj-warning" hidden></strong></p>
+        <div class="control">
+          <label for="dj-sensitivity">Sensitivity</label>
+          <output id="dj-sensitivity-out" for="dj-sensitivity"></output>
+          <input type="range" id="dj-sensitivity" min="0" max="100" step="1">
+        </div>
+      </div>
+    </div>
+
     <p class="hint hint-touch">Swipe up or down for brightness and sideways for <span class="hint-axis">temperature</span>. Tap the light to show or hide controls.</p>
     <p class="hint hint-keys">
       Click the light to show or hide controls, or drag on it to adjust.
@@ -87,6 +113,8 @@
         <span><kbd>←</kbd><kbd>→</kbd> <span class="hint-axis">temperature</span></span>
         <span><kbd>F</kbd> fullscreen</span>
         <span><kbd>1</kbd>–<kbd>6</kbd> presets</span>
+        <span><kbd>D</kbd> DJ sync</span>
+        <span><kbd>P</kbd> pattern</span>
       </span>
     </p>
   </section>

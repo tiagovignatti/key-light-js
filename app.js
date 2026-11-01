@@ -3,9 +3,15 @@
 const K_MIN = 2500;
 const K_MAX = 9000;
 const STORAGE_KEY = 'key-light';
-const DEFAULTS = { mode: 'white', kelvin: 4500, hue: 210, sat: 60, brightness: 100, softbox: false };
+const DEFAULTS = {
+  mode: 'white', kelvin: 4500, hue: 210, sat: 60, brightness: 100, softbox: false,
+  djPattern: 'spectrum', djSensitivity: 60,
+};
 // Size of one nudge step (fine adjustment); a coarse step is five of these.
 const STEP = { brightness: 1, kelvin: 50, hue: 1 };
+// Beats closer than this are ignored, so DJ sync never flashes more than three
+// times a second (the WCAG 2.3.1 limit for photosensitive seizures).
+const MIN_BEAT_MS = 334;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -51,6 +57,54 @@ function sameLook(a, b) {
   return a.mode === 'white' ? a.kelvin === b.kelvin : a.hue === b.hue && a.sat === b.sat;
 }
 
+/* ---------- DJ patterns ---------- */
+
+// Each frame returns a color at full scale and a level from 0 to 1, which DJ sync
+// scales by the brightness setting. dj.env jumps to 1 on a beat and decays with the
+// pattern's time constant; dj.loud and dj.bands (bass, mids, highs) are auto-gained
+// to 0..1.
+const PATTERNS = {
+  spectrum: {
+    decay: 0.25,
+    note: 'Bass glows red, mids green and highs blue.',
+    frame: () => {
+      const [bass, mid, high] = dj.bands.map((band) => band.value);
+      const mix = [
+        255 * bass + 40 * mid + 30 * high,
+        30 * bass + 230 * mid + 80 * high,
+        20 * bass + 30 * mid + 255 * high,
+      ];
+      const peak = Math.max(...mix, 1);
+      return { rgb: mix.map((c) => Math.round((c / peak) * 255)), level: 0.2 + 0.8 * Math.max(bass, mid, high) };
+    },
+  },
+  hop: {
+    decay: 0.35,
+    note: 'A new color on every beat.',
+    frame: () => ({ rgb: hsvToRgb(dj.hopHue, 1), level: 0.3 + 0.7 * dj.env }),
+  },
+  pulse: {
+    decay: 0.22,
+    note: 'Your light kicks on every beat.',
+    frame: () => ({ rgb: baseRgb(state), level: 0.35 + 0.65 * dj.env }),
+  },
+  flow: {
+    decay: 0.25,
+    note: 'Colors drift and swell with the music.',
+    frame: (dt) => {
+      // About 12° of hue per beat, faster when it's loud.
+      dj.hue = (dj.hue + dt * ((dj.bpm || 100) / 60) * 12 * (0.5 + dj.loud.value)) % 360;
+      return { rgb: hsvToRgb(dj.hue, 0.85), level: 0.25 + 0.75 * dj.loud.value };
+    },
+  },
+  strobe: {
+    decay: 0.06,
+    note: 'Your light flashes on the beat.',
+    warning: 'Flashing light can affect people with photosensitive epilepsy.',
+    frame: () => ({ rgb: baseRgb(state), level: dj.env }),
+  },
+};
+
 /* ---------- State, storage and URL ---------- */
 
 function sanitize(s) {
@@ -61,6 +115,8 @@ function sanitize(s) {
     sat: clamp(Math.round(toNumber(s.sat, DEFAULTS.sat)), 0, 100),
     brightness: clamp(Math.round(toNumber(s.brightness, DEFAULTS.brightness)), 1, 100),
     softbox: s.softbox === true,
+    djPattern: s.djPattern in PATTERNS ? s.djPattern : DEFAULTS.djPattern,
+    djSensitivity: clamp(Math.round(toNumber(s.djSensitivity, DEFAULTS.djSensitivity)), 0, 100),
   };
 }
 
@@ -140,8 +196,24 @@ const modeOnly = $$('[data-mode-only]');
 const hintAxis = $$('.hint-axis');
 const presetButtons = $$('[data-kelvin]');
 const slotButtons = $$('[data-slot]');
-const sliders = { brightness: $('#brightness'), kelvin: $('#kelvin'), hue: $('#hue'), sat: $('#sat') };
-const outputs = { brightness: $('#brightness-out'), kelvin: $('#kelvin-out'), hue: $('#hue-out'), sat: $('#sat-out') };
+const djBtn = $('#dj-btn');
+const djBody = $('#dj-body');
+const djStatus = $('#dj-status');
+const djBpm = $('#dj-bpm');
+const djBeat = $('#dj-beat');
+const djNote = $('#dj-note');
+const djWarning = $('#dj-warning');
+const patternButtons = $$('[data-pattern]');
+const sliders = {
+  brightness: $('#brightness'), kelvin: $('#kelvin'), hue: $('#hue'), sat: $('#sat'),
+  djSensitivity: $('#dj-sensitivity'),
+};
+const outputs = {
+  brightness: $('#brightness-out'), kelvin: $('#kelvin-out'), hue: $('#hue-out'), sat: $('#sat-out'),
+  djSensitivity: $('#dj-sensitivity-out'),
+};
+
+const paint = (rgb) => root.style.setProperty('--light', rgbCss(rgb));
 
 function setSlider(name, value, label, thumb, track) {
   const slider = sliders[name];
@@ -157,17 +229,27 @@ function render(animate = false) {
   const light = lightRgb(state);
   const pureHue = hsvToRgb(state.hue, 1);
 
-  root.style.setProperty('--fade', animate ? '450ms' : '0ms');
-  root.style.setProperty('--light', rgbCss(light));
+  // While DJ sync runs, its frame loop paints the light.
+  if (!dj.on) {
+    root.style.setProperty('--fade', animate ? '450ms' : '0ms');
+    paint(light);
+    themeColor.content = rgbHex(light);
+  }
   root.style.setProperty('--accent', rgbCss(base));
   root.style.setProperty('--on-accent', isPale(base) ? '#1f1d1a' : '#f4f0e8');
-  themeColor.content = rgbHex(light);
   softboxEl.classList.toggle('on', state.softbox);
 
   setSlider('brightness', state.brightness, `${state.brightness}%`, light, `linear-gradient(to right, #000, ${rgbCss(base)})`);
   setSlider('kelvin', state.kelvin, `${state.kelvin}K`, kelvinToRgb(state.kelvin));
   setSlider('hue', state.hue, `${state.hue}°`, pureHue);
   setSlider('sat', state.sat, `${state.sat}%`, base, `linear-gradient(to right, #fff, ${rgbCss(pureHue)})`);
+  setSlider('djSensitivity', state.djSensitivity, `${state.djSensitivity}%`, [255, 255, 255]);
+
+  const pattern = PATTERNS[state.djPattern];
+  for (const btn of patternButtons) btn.setAttribute('aria-pressed', btn.dataset.pattern === state.djPattern);
+  djNote.textContent = pattern.note;
+  djWarning.textContent = pattern.warning || '';
+  djWarning.hidden = !pattern.warning;
 
   for (const el of modeOnly) el.hidden = el.dataset.modeOnly !== state.mode;
   for (const el of hintAxis) el.textContent = state.mode === 'white' ? 'temperature' : 'hue';
@@ -379,6 +461,11 @@ for (const btn of modeButtons) {
   btn.addEventListener('click', () => setState({ mode: btn.dataset.mode }, true));
 }
 
+for (const btn of patternButtons) {
+  btn.addEventListener('click', () => setState({ djPattern: btn.dataset.pattern }));
+}
+
+djBtn.addEventListener('click', () => setDj(!dj.on));
 softboxBtn.addEventListener('click', () => setState({ softbox: !state.softbox }));
 mirrorBtn.addEventListener('click', () => setMirror(!stream));
 linkBtn.addEventListener('click', shareLink);
@@ -431,11 +518,15 @@ async function keepAwake() {
   }
 }
 
-// The lock is dropped whenever the page is hidden. Take the camera down too,
-// so it isn't left running in a background tab.
+// The lock is dropped whenever the page is hidden. Take the camera and the
+// microphone down too, so they aren't left running in a background tab.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') keepAwake();
-  else if (stream) setMirror(false);
+  if (document.visibilityState === 'visible') {
+    keepAwake();
+  } else {
+    if (stream) setMirror(false);
+    setDj(false);
+  }
 });
 addEventListener('pointerdown', keepAwake);
 
@@ -468,6 +559,184 @@ async function setMirror(on) {
   }
   mirrorEl.hidden = !stream;
   mirrorBtn.setAttribute('aria-pressed', !!stream);
+}
+
+/* ---------- DJ sync ---------- */
+
+// Listens through the microphone, finds beats in the bass and drives the light
+// with the chosen pattern.
+const dj = { on: false, pending: false };
+
+const makeFollower = () => ({ lo: 1, hi: 0, value: 0 });
+
+// Rescales a dB-scaled 0..1 signal against its recent floor and peak (a slow
+// auto gain), then smooths it with a fast attack and a slower release.
+function follow(f, x, dt) {
+  f.hi = Math.max(x, f.hi - dt * 0.02);
+  f.lo = Math.min(x, f.lo + dt * 0.01);
+  const norm = clamp((x - f.lo) / Math.max(0.12, f.hi - f.lo), 0, 1);
+  const tau = norm > f.value ? 0.04 : 0.3;
+  f.value += (norm - f.value) * (1 - Math.exp(-dt / tau));
+}
+
+async function setDj(on) {
+  if (dj.pending || on === dj.on) return;
+  if (!on) {
+    cancelAnimationFrame(dj.raf);
+    dj.stream.getTracks().forEach((track) => track.stop());
+    dj.ctx.close();
+    Object.assign(dj, { on: false, stream: null, ctx: null, analyser: null });
+    syncDj();
+    render(true);
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) {
+    hud('DJ sync needs HTTPS or localhost.', 3000);
+    return;
+  }
+
+  dj.pending = true;
+  // Created and resumed inside the click, or browsers keep it suspended.
+  const ctx = new AudioContext();
+  const resumed = ctx.resume();
+  try {
+    // Echo cancellation would subtract music playing from this very device.
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+    });
+    await resumed;
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0;
+    analyser.minDecibels = -90;
+    analyser.maxDecibels = -10;
+    // Some browsers only process nodes that lead to the speakers, so end in silence.
+    const mute = ctx.createGain();
+    mute.gain.value = 0;
+    ctx.createMediaStreamSource(stream).connect(analyser).connect(mute).connect(ctx.destination);
+
+    const bins = new Uint8Array(analyser.frequencyBinCount);
+    Object.assign(dj, {
+      on: true, stream, ctx, analyser, bins,
+      prev: new Uint8Array(bins.length),
+      binHz: ctx.sampleRate / analyser.fftSize,
+      env: 0, hue: 0, hopHue: 0, bpm: 0, intervals: [], lastBeat: 0,
+      fluxMean: 0, fluxVar: 0,
+      loud: makeFollower(), bands: [makeFollower(), makeFollower(), makeFollower()],
+      lastFrame: 0, lastAnalysis: 0, lastTheme: 0, status: '',
+    });
+    root.style.setProperty('--fade', '0ms');
+    dj.raf = requestAnimationFrame(djFrame);
+  } catch (err) {
+    ctx.close();
+    const message = {
+      NotAllowedError: 'Microphone access is blocked. Allow it in the site settings to use DJ sync.',
+      NotFoundError: 'No microphone found.',
+    }[err.name] || 'The microphone is unavailable. Another app may be using it.';
+    hud(message, 3500);
+  }
+  dj.pending = false;
+  syncDj();
+}
+
+function syncDj() {
+  djBtn.setAttribute('aria-checked', dj.on);
+  djBody.hidden = !dj.on;
+  djStatus.hidden = !dj.on;
+}
+
+function analyse(now, dt) {
+  const { analyser, bins, prev, binHz } = dj;
+  analyser.getByteFrequencyData(bins);
+  const bin = (hz) => Math.max(1, Math.round(hz / binHz));
+  const band = (lo, hi) => {
+    let sum = 0;
+    for (let i = bin(lo); i <= bin(hi); i++) sum += bins[i];
+    return sum / (bin(hi) - bin(lo) + 1) / 255;
+  };
+
+  // Onset strength: how much the bass rose since the last look.
+  let flux = 0;
+  for (let i = bin(40); i <= bin(160); i++) flux += Math.max(0, bins[i] - prev[i]);
+  flux /= (bin(160) - bin(40) + 1) * 255;
+  prev.set(bins);
+
+  // A beat is a rise well above the recent average; higher sensitivity lowers the bar.
+  const s = state.djSensitivity / 100;
+  const threshold = Math.max(dj.fluxMean + (2.4 - 1.8 * s) * Math.sqrt(dj.fluxVar), 0.05 - 0.035 * s);
+  if (flux > threshold && band(40, 160) > 0.38 - 0.18 * s && now - dj.lastBeat >= MIN_BEAT_MS) onBeat(now);
+
+  // Exponentially weighted mean and variance over about a second.
+  const a = 1 - Math.exp(-dt);
+  const diff = flux - dj.fluxMean;
+  dj.fluxMean += a * diff;
+  dj.fluxVar = (1 - a) * (dj.fluxVar + a * diff * diff);
+
+  follow(dj.loud, band(40, 8000), dt);
+  follow(dj.bands[0], band(40, 250), dt);
+  follow(dj.bands[1], band(250, 2000), dt);
+  follow(dj.bands[2], band(2000, 8000), dt);
+}
+
+function onBeat(now) {
+  const interval = (now - dj.lastBeat) / 1000;
+  dj.lastBeat = now;
+  dj.env = 1;
+  dj.hopHue = (dj.hopHue + 137.5) % 360; // The golden angle keeps consecutive colors far apart.
+  if (interval > 2) {
+    dj.intervals = [];
+    return;
+  }
+  // Fold into 80–180 BPM, so a missed beat still counts toward the tempo.
+  let beat = interval;
+  while (beat > 0.75) beat /= 2;
+  dj.intervals = [...dj.intervals.slice(-11), beat];
+  if (dj.intervals.length >= 4) {
+    // Average the middle half, ignoring stray detections at either end.
+    const sorted = [...dj.intervals].sort((x, y) => x - y);
+    const middle = sorted.slice(sorted.length >> 2, sorted.length - (sorted.length >> 2));
+    dj.bpm = 60 / (middle.reduce((sum, x) => sum + x, 0) / middle.length);
+  }
+}
+
+function djFrame(now) {
+  dj.raf = requestAnimationFrame(djFrame);
+  const dt = dj.lastFrame ? Math.min(0.1, (now - dj.lastFrame) / 1000) : 0;
+  dj.lastFrame = now;
+
+  // Analyse at most about 60 times a second, so onset strength doesn't depend on
+  // the display's refresh rate.
+  if (now - dj.lastAnalysis >= 15) {
+    analyse(now, Math.min(0.1, (now - dj.lastAnalysis) / 1000));
+    dj.lastAnalysis = now;
+  }
+  if (now - dj.lastBeat > 3000) {
+    dj.bpm = 0;
+    dj.intervals = [];
+  }
+
+  const pattern = PATTERNS[state.djPattern];
+  dj.env *= Math.exp(-dt / pattern.decay);
+  const { rgb, level } = pattern.frame(dt);
+  const light = rgb.map((c) => Math.round((c * clamp(level, 0, 1) * state.brightness) / 100));
+  paint(light);
+  // Browser toolbars repaint slowly; don't retint them every frame.
+  if (now - dj.lastTheme > 150) {
+    themeColor.content = rgbHex(light);
+    dj.lastTheme = now;
+  }
+
+  djBeat.style.opacity = 0.2 + 0.8 * dj.env;
+  const status = dj.bpm ? `${Math.round(dj.bpm)} BPM` : 'Listening…';
+  if (status !== dj.status) djBpm.textContent = dj.status = status;
+}
+
+function nextPattern() {
+  const names = Object.keys(PATTERNS);
+  const name = names[(names.indexOf(state.djPattern) + 1) % names.length];
+  setState({ djPattern: name });
+  const label = $(`[data-pattern="${name}"]`).textContent;
+  hud(PATTERNS[name].warning ? `${label}. ${PATTERNS[name].warning}` : label, PATTERNS[name].warning ? 3500 : 1200);
 }
 
 /* ---------- Sharing ---------- */
@@ -520,6 +789,8 @@ addEventListener('keydown', (e) => {
       c: () => setState({ mode: state.mode === 'white' ? 'color' : 'white' }, true),
       s: () => setState({ softbox: !state.softbox }),
       m: () => setMirror(!stream),
+      d: () => setDj(!dj.on),
+      p: nextPattern,
     }[e.key.toLowerCase()];
     if (!action) return;
     action();

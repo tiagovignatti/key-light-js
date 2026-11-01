@@ -36,7 +36,28 @@ For the most light, turn the device's own brightness all the way up. A web page 
 | Presets 3200K, 4500K, 5600K | Tap | <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> |
 | Saved lights | Tap an empty slot to save, tap to use, hold to replace | <kbd>4</kbd> <kbd>5</kbd> <kbd>6</kbd>, <kbd>Shift</kbd> + number to save |
 
+| DJ sync on or off | DJ sync switch | <kbd>D</kbd> |
+| Next DJ pattern | Pattern buttons | <kbd>P</kbd> |
+
 Hold <kbd>Shift</kbd> with the arrow keys for fine steps.
+
+## DJ sync
+
+Turn on DJ sync and play music nearby. The light listens through the microphone, finds the beat in the bass, shows the tempo, and moves with the music:
+
+| Pattern | What it does |
+|---|---|
+| Spectrum | A color organ: bass glows red, mids green and highs blue. |
+| Hop | A new color on every beat. |
+| Pulse | Your light kicks on every beat and settles back. |
+| Flow | Colors drift around the wheel and swell with the volume. |
+| Strobe | Your light flashes on the beat, dark in between. |
+
+Brightness stays the master level, and Pulse and Strobe use the current white or color light. Raise the sensitivity if beats are missed, lower it if the light reacts to everything.
+
+The light never flashes more than three times a second, the limit WCAG sets for photosensitive seizures. Even so, Strobe and Hop are flashing effects. Don't use them around people with photosensitive epilepsy.
+
+Echo cancellation is turned off, so music playing from the same computer should be picked up too. On phones, turning on the microphone may pause music playing in other apps; playing the music from another device avoids that. DJ sync stops when you leave the page, and the audio never leaves your device.
 
 The screen stays on while the light is open, and the last setup is remembered.
 

@@ -152,7 +152,8 @@ body.idle .stage {
   transition: opacity 0.22s ease, transform 0.22s ease, visibility 0s linear 0.22s;
 }
 
-.panel button {
+/* Zero specificity, so component rules below override it. */
+:where(.panel) button {
   appearance: none;
   border: 0;
   margin: 0;
@@ -161,7 +162,7 @@ body.idle .stage {
   cursor: pointer;
 }
 
-.panel button:focus-visible {
+:where(.panel) button:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
@@ -211,7 +212,9 @@ body.idle .stage {
   background: var(--well);
 }
 
-.tool svg {
+.tool svg,
+.dj-label svg {
+  flex: none;
   width: 20px;
   height: 20px;
   fill: none;
@@ -366,6 +369,115 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 .slot:not(.filled) .swatch {
   box-shadow: none;
   border: 1.5px dashed var(--ink-2);
+}
+
+/* ---------- DJ sync ---------- */
+
+.dj {
+  margin-bottom: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+
+.dj-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dj-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dj-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.beat {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink);
+  opacity: 0.2;
+}
+
+.switch {
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 28px;
+  margin-left: auto;
+  border-radius: 999px;
+  background: var(--well-hover);
+  transition: background-color 0.2s ease;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.4);
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.switch[aria-checked="true"] {
+  background: var(--accent);
+}
+
+.switch[aria-checked="true"]::after {
+  background: var(--on-accent);
+  transform: translateX(18px);
+}
+
+.dj-body {
+  margin-top: 12px;
+}
+
+.patterns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pattern {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--well);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.pattern[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.dj-note {
+  margin: 8px 0 6px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.dj-note strong {
+  font-weight: 600;
+  color: var(--ink);
 }
 
 /* ---------- Hints ---------- */
