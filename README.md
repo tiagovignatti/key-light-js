@@ -70,7 +70,11 @@ The screen stays on while the light is open, and the last setup is remembered.
 
 ## Camera
 
-With the camera mirror on, pick an effect: Pop art, Thermal, Comic, Kaleido, Bulge, Glitch or 8-bit. While DJ sync is on, the effects move with the beat. They run as WebGL shaders, on the camera's full resolution.
+With the camera mirror on, pick an effect. They run as WebGL shaders, on the camera's full resolution.
+
+- **Smooth** evens out skin while keeping eyes, brows and hair sharp, and adds a little brightness and warmth.
+- **Glow** works like a mist filter on a film lens: highlights bloom into a soft haze, contrast eases and the tones warm.
+- **Pop art, Thermal, Comic, Glitch and 8-bit** are for fun, and move with the beat while DJ sync is on.
 
 When there's more than one camera, Switch appears next to the Camera heading. On phones it flips between the front and back cameras; on computers it steps through the connected cameras. Cameras that face you are mirrored, and the back camera shows the world as it is, in the light and in recordings.
 

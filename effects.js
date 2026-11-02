@@ -9,6 +9,60 @@
 const EFFECTS = {
   none: 'gl_FragColor = cam(v_uv);',
 
+  // An edge-preserving blur: neighbors only count when their brightness is
+  // close, so skin, pores and redness even out while eyes, brows and hair stay
+  // sharp. Strongest on skin tones, then a little lift and warmth. Steady,
+  // whatever the music.
+  smooth: `
+    vec3 c = cam(v_uv).rgb;
+    vec3 sum = c;
+    float total = 1.0;
+    for (int i = 0; i < 24; i++) {
+      float f = float(i);
+      // Taps on a golden-angle spiral cover the disk evenly.
+      vec3 s = cam(v_uv + sqrt((f + 0.5) / 24.0) * 0.013 * vec2(cos(f * 2.39996), sin(f * 2.39996))).rgb;
+      vec3 d = s - c;
+      float dy = luma(d);
+      float w = exp(-80.0 * dy * dy - 12.0 * dot(d, d));
+      sum += s * w;
+      total += w;
+    }
+    vec3 soft = sum / total;
+    // Skin tones in YCbCr: a little below neutral in blue, above it in red.
+    float cb = dot(soft, vec3(-0.1687, -0.3313, 0.5));
+    float cr = dot(soft, vec3(0.5, -0.4187, -0.0813));
+    float skin = smoothstep(-0.24, -0.17, cb) * (1.0 - smoothstep(-0.02, 0.03, cb))
+      * smoothstep(0.0, 0.04, cr) * (1.0 - smoothstep(0.17, 0.22, cr));
+    vec3 col = mix(c, soft, mix(0.3, 0.85, skin));
+    col = pow(col, vec3(0.92)) * vec3(1.03, 1.0, 0.97);
+    gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);`,
+
+  // Like a mist filter on a film lens: light spreads into the darker areas
+  // around it and highlights bloom, while dark areas never spread, so faces
+  // stay clean. Contrast eases and the tones warm. Steady, whatever the music.
+  glow: `
+    vec3 c = cam(v_uv).rgb;
+    vec3 haze = vec3(0.0);
+    vec3 bloom = vec3(0.0);
+    // Turning the taps a different way on each pixel hides them as fine grain.
+    float spin = 6.2831853 * fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+    for (int i = 0; i < 32; i++) {
+      float f = float(i);
+      float a = f * 2.39996 + spin;
+      vec3 s = cam(v_uv + sqrt((f + 0.5) / 32.0) * 0.045 * vec2(cos(a), sin(a))).rgb;
+      haze += s;
+      bloom += s * smoothstep(0.7, 1.0, luma(s));
+    }
+    haze /= 32.0;
+    bloom /= 32.0;
+    // Lighten only: the haze lifts what's darker than it and leaves the rest.
+    vec3 col = max(c, mix(c, haze, 0.25));
+    // Highlights screen back on as a halo.
+    col = 1.0 - (1.0 - col) * (1.0 - 0.9 * bloom);
+    // Milky shadows and a warm cast.
+    col = (col * 0.95 + 0.04) * vec3(1.04, 1.0, 0.94);
+    gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);`,
+
   // Four tiles, each posterized into its own three inks; the inks rotate on beats.
   pop: `
     vec2 tile = floor(v_uv * 2.0);
@@ -47,20 +101,6 @@ const EFFECTS = {
     float halftone = 1.0 - smoothstep(0.0, 0.08, length(fract(v_uv * 90.0) - 0.5) - (1.0 - y) * 0.45);
     c *= 1.0 - 0.3 * halftone;
     gl_FragColor = vec4(mix(c, vec3(0.06), ink), 1.0);`,
-
-  // Eight mirrored wedges that turn, and sweep across the face, with the music.
-  kaleido: `
-    vec2 p = v_uv - 0.5;
-    float wedge = 6.2831853 / 8.0;
-    float a = abs(mod(atan(p.y, p.x) + u_time * 0.25, wedge) - wedge * 0.5) + u_time * 0.1;
-    float r = length(p) * (1.0 - 0.15 * u_beat);
-    gl_FragColor = cam(0.5 + r * vec2(cos(a), sin(a)));`,
-
-  // Funhouse mirror: magnifies the middle, harder on every beat.
-  bulge: `
-    vec2 p = v_uv - 0.5;
-    float k = 1.6 + 0.8 * u_beat;
-    gl_FragColor = cam(0.5 + p * pow(length(p) * 2.0, k - 1.0));`,
 
   // Torn scanlines and split color channels that kick on beats.
   glitch: `
