@@ -92,7 +92,7 @@ The address always reflects the current light, so you can bookmark or share a se
 
 - `#k=4500&b=80`: white light at 4500K, 80% brightness
 - `#h=210&s=60&b=80`: color light at hue 210°, 60% saturation, 80% brightness
-- Add `&soft=1` to turn on the softbox falloff
+- The softbox falloff is on by default; add `&soft=0` to turn it off
 
 ## Files
 

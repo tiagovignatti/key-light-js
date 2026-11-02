@@ -4,7 +4,7 @@ const K_MIN = 2500;
 const K_MAX = 9000;
 const STORAGE_KEY = 'key-light';
 const DEFAULTS = {
-  mode: 'white', kelvin: 4500, hue: 210, sat: 60, brightness: 100, softbox: false,
+  mode: 'white', kelvin: 4500, hue: 210, sat: 60, brightness: 100, softbox: true,
   djPattern: 'spectrum', djSensitivity: 60,
   camEffect: 'none', recCrop: '9:16', recQuality: 1080, recSound: true,
 };
@@ -117,7 +117,7 @@ function sanitize(s) {
     hue: ((Math.round(toNumber(s.hue, DEFAULTS.hue)) % 360) + 360) % 360,
     sat: clamp(Math.round(toNumber(s.sat, DEFAULTS.sat)), 0, 100),
     brightness: clamp(Math.round(toNumber(s.brightness, DEFAULTS.brightness)), 1, 100),
-    softbox: s.softbox === true,
+    softbox: s.softbox !== false,
     djPattern: s.djPattern in PATTERNS ? s.djPattern : DEFAULTS.djPattern,
     djSensitivity: clamp(Math.round(toNumber(s.djSensitivity, DEFAULTS.djSensitivity)), 0, 100),
     camEffect: s.camEffect in EFFECTS ? s.camEffect : DEFAULTS.camEffect,
@@ -127,10 +127,11 @@ function sanitize(s) {
   };
 }
 
-// White light: #k=4500&b=80. Colored light: #h=210&s=60&b=80. Either may add &soft=1.
+// White light: #k=4500&b=80. Colored light: #h=210&s=60&b=80. Either may add &soft=0
+// to turn off the softbox, which is on by default.
 function hashFor(s) {
   const params = s.mode === 'color' ? { h: s.hue, s: s.sat, b: s.brightness } : { k: s.kelvin, b: s.brightness };
-  if (s.softbox) params.soft = 1;
+  if (!s.softbox) params.soft = 0;
   return new URLSearchParams(params).toString();
 }
 
@@ -141,7 +142,7 @@ function readHash() {
   if (params.has('h')) Object.assign(s, { mode: 'color', hue: params.get('h') });
   if (params.has('s')) s.sat = params.get('s');
   if (params.has('b')) s.brightness = params.get('b');
-  if (Object.keys(s).length) s.softbox = params.get('soft') === '1';
+  if (Object.keys(s).length) s.softbox = params.get('soft') !== '0';
   return s;
 }
 
@@ -152,6 +153,8 @@ function load() {
   } catch {
     // Storage blocked or corrupt: start from defaults.
   }
+  // Before version 2 the softbox was off by default, so a saved "off" wasn't a choice.
+  if (saved.version !== 2) delete saved.state?.softbox;
   return {
     state: sanitize({ ...DEFAULTS, ...saved.state, ...readHash() }),
     slots: [0, 1, 2].map((i) => (saved.slots?.[i] ? lookOf(sanitize(saved.slots[i])) : null)),
@@ -171,7 +174,7 @@ function persist() {
 function flush() {
   clearTimeout(persistTimer);
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, slots }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 2, state, slots }));
   } catch {
     // Private mode or quota: the URL still carries the settings.
   }
