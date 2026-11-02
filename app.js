@@ -212,7 +212,9 @@ const djNote = $('#dj-note');
 const djWarning = $('#dj-warning');
 const patternButtons = $$('[data-pattern]');
 const mirrorCanvas = $('#mirror-canvas');
-const fxSection = $('#fx-section');
+const camSection = $('#cam-section');
+const camSwitchBtn = $('#cam-switch');
+const fxBody = $('#fx-body');
 const effectButtons = $$('[data-effect]');
 const cropGuide = $('#crop-guide');
 const recToggle = $('#rec-toggle');
@@ -231,6 +233,7 @@ const savedInfo = $('#saved-info');
 const saveBtn = $('#save-btn');
 const shareBtn = $('#share-btn');
 const discardBtn = $('#discard-btn');
+const installSheet = $('#install');
 const sliders = {
   brightness: $('#brightness'), kelvin: $('#kelvin'), hue: $('#hue'), sat: $('#sat'),
   djSensitivity: $('#dj-sensitivity'),
@@ -531,6 +534,7 @@ discardBtn.addEventListener('click', discardVideo);
 djBtn.addEventListener('click', () => setDj(!dj.on));
 softboxBtn.addEventListener('click', () => setState({ softbox: !state.softbox }));
 mirrorBtn.addEventListener('click', () => setMirror(!stream));
+camSwitchBtn.addEventListener('click', switchCamera);
 linkBtn.addEventListener('click', shareLink);
 fsBtn.addEventListener('click', toggleFullscreen);
 
@@ -539,6 +543,7 @@ fsBtn.addEventListener('click', toggleFullscreen);
 const fullscreenEnabled = document.fullscreenEnabled || document.webkitFullscreenEnabled;
 const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement;
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const iPhone = /iPhone|iPod/.test(navigator.userAgent);
 
 function toggleFullscreen() {
   if (fullscreenElement()) {
@@ -547,11 +552,20 @@ function toggleFullscreen() {
   } else if (fullscreenEnabled) {
     const request = root.requestFullscreen || root.webkitRequestFullscreen;
     Promise.resolve(request.call(root, { navigationUI: 'hide' })).catch(() => {});
+  } else if (iPhone) {
+    // iPhone browsers have no Fullscreen API; a Home Screen web app opens without browser bars.
+    hidePanel();
+    installSheet.showModal();
   } else {
-    // iPhone Safari has no Fullscreen API; an installed web app opens without browser bars.
-    hud('For fullscreen on iPhone, tap Share, then Add to Home Screen.', 4000);
+    hud("This browser can't go fullscreen.", 3000);
   }
 }
+
+$('#install-close').addEventListener('click', () => installSheet.close());
+// A click on the dimmed backdrop lands on the dialog itself, outside its card.
+installSheet.addEventListener('click', (e) => {
+  if (e.target === installSheet) installSheet.close();
+});
 
 function syncFullscreen() {
   const on = !!fullscreenElement();
@@ -599,6 +613,26 @@ addEventListener('pointerdown', keepAwake);
 
 let stream = null;
 let mirrorPending = false;
+// The camera to open: the front one, until another is picked.
+let camera = { facingMode: 'user' };
+let cameras = [];
+let mirrored = true;
+
+// Ask for HD, so recordings stay sharp; browsers fall back to what the camera has.
+const openCamera = (video) => navigator.mediaDevices.getUserMedia({
+  video: { ...video, width: { ideal: 1920 }, height: { ideal: 1080 } },
+  audio: false,
+});
+
+function useCamera(newStream) {
+  stream = newStream;
+  mirrorVideo.srcObject = stream;
+  const { facingMode, deviceId } = stream.getVideoTracks()[0].getSettings();
+  camera = facingMode ? { deviceId, facingMode } : { deviceId };
+  // A mirror for cameras that face you; the back camera shows the world as it is.
+  mirrored = facingMode !== 'environment';
+  mirrorEl.classList.toggle('rear', !mirrored);
+}
 
 async function setMirror(on) {
   if (mirrorPending) return;
@@ -612,16 +646,12 @@ async function setMirror(on) {
   } else {
     mirrorPending = true;
     try {
-      // Ask for HD, so recordings stay sharp; browsers fall back to what the camera has.
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false,
-      });
-      mirrorVideo.srcObject = stream;
+      useCamera(await openCamera(camera));
       if (renderEffect) {
         fxLast = 0;
         fxRaf = requestAnimationFrame(effectFrame);
       }
+      listCameras();
     } catch (err) {
       const message = {
         NotAllowedError: 'Camera access is blocked. Allow it in the site settings to use the mirror.',
@@ -631,9 +661,67 @@ async function setMirror(on) {
     }
     mirrorPending = false;
   }
+  syncCamera();
+}
+
+function syncCamera() {
+  const canSwitch = cameras.length > 1;
   mirrorEl.hidden = !stream;
-  fxSection.hidden = !stream || !renderEffect;
   mirrorBtn.setAttribute('aria-pressed', !!stream);
+  camSection.hidden = !stream || (!renderEffect && !canSwitch);
+  camSwitchBtn.hidden = !canSwitch;
+  fxBody.hidden = !renderEffect;
+}
+
+// Browsers only list every camera once one is allowed, so ask after opening it.
+async function listCameras() {
+  try {
+    cameras = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === 'videoinput');
+  } catch {
+    cameras = [];
+  }
+  syncCamera();
+}
+
+navigator.mediaDevices?.addEventListener('devicechange', () => {
+  if (stream) listCameras();
+});
+
+async function switchCamera() {
+  if (!stream || mirrorPending || cameras.length < 2) return;
+  mirrorPending = true;
+  const { facingMode, deviceId } = stream.getVideoTracks()[0].getSettings();
+  const next = cameras[(cameras.findIndex((c) => c.deviceId === deviceId) + 1) % cameras.length];
+  const choices = [
+    // Phones list several back cameras, so flip between front and back
+    // rather than step through all of them.
+    (facingMode === 'user' || facingMode === 'environment') &&
+      { facingMode: { exact: facingMode === 'user' ? 'environment' : 'user' } },
+    { deviceId: { exact: next.deviceId } },
+    { deviceId: { exact: deviceId } }, // The camera we had.
+  ].filter(Boolean);
+
+  // Phones can only open one camera at a time.
+  stream.getTracks().forEach((track) => track.stop());
+  let newStream = null;
+  for (const video of choices) {
+    try {
+      newStream = await openCamera(video);
+      break;
+    } catch {
+      // Try the next one.
+    }
+  }
+  mirrorPending = false;
+  if (!newStream) {
+    hud('The camera is unavailable. Another app may be using it.', 3500);
+    setMirror(false);
+    return;
+  }
+  useCamera(newStream);
+  const { facingMode: facing, deviceId: id } = newStream.getVideoTracks()[0].getSettings();
+  const label = cameras.find((c) => c.deviceId === id)?.label.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)$/i, '');
+  hud({ user: 'Front camera', environment: 'Back camera' }[facing] || label || 'Camera switched');
 }
 
 /* ---------- Camera effects ---------- */
@@ -657,14 +745,14 @@ function effectFrame(now) {
   // Animations run faster on beats, so the effects jump with the music.
   fxPhase += dt * (1 + 3 * beat);
   try {
-    renderEffect(mirrorVideo, state.camEffect, { time: fxPhase, beat, beats: dj.on ? dj.beats : Math.floor(fxPhase / 2) });
+    renderEffect(mirrorVideo, state.camEffect, { time: fxPhase, beat, beats: dj.on ? dj.beats : Math.floor(fxPhase / 2), mirrored });
   } catch (err) {
     // A shader this GPU can't compile: fall back to the plain camera.
     console.error(err);
     cancelAnimationFrame(fxRaf);
     renderEffect = null;
     mirrorCanvas.hidden = true;
-    fxSection.hidden = true;
+    syncCamera();
   }
 }
 
@@ -934,8 +1022,11 @@ function drawScene(ctx, crop, scale) {
       // No WebGL: crop the video to a square and mirror it, like the CSS does.
       const { videoWidth: vw, videoHeight: vh } = mirrorVideo;
       const side = Math.min(vw, vh);
-      ctx.translate(r.x + r.width, r.y);
-      ctx.scale(-1, 1);
+      ctx.translate(r.x, r.y);
+      if (mirrored) {
+        ctx.translate(r.width, 0);
+        ctx.scale(-1, 1);
+      }
       ctx.drawImage(mirrorVideo, (vw - side) / 2, (vh - side) / 2, side, side, 0, 0, r.width, r.height);
     }
     ctx.restore();
@@ -1103,7 +1194,7 @@ addEventListener('hashchange', () => setState(readHash(), true));
 /* ---------- Keyboard ---------- */
 
 addEventListener('keydown', (e) => {
-  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.metaKey || e.ctrlKey || e.altKey || installSheet.open) return;
   const steps = e.shiftKey ? 1 : 5;
   const arrow = { ArrowUp: ['y', 1], ArrowDown: ['y', -1], ArrowRight: ['x', 1], ArrowLeft: ['x', -1] }[e.key];
 
@@ -1127,6 +1218,7 @@ addEventListener('keydown', (e) => {
       c: () => setState({ mode: state.mode === 'white' ? 'color' : 'white' }, true),
       s: () => setState({ softbox: !state.softbox }),
       m: () => setMirror(!stream),
+      v: switchCamera,
       d: () => setDj(!dj.on),
       p: nextPattern,
       e: nextEffect,

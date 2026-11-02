@@ -44,6 +44,21 @@
     </div>
   </div>
 
+  <dialog id="install" class="install" aria-labelledby="install-title">
+    <div class="install-card">
+      <h2 id="install-title">Add Key Light to your Home Screen</h2>
+      <p>On iPhone, Safari can't make a page fullscreen. Opened from the Home Screen, Key Light fills the screen with no browser bars.</p>
+      <ol>
+        <li><span>Tap Share <svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="m16 6-4-4-4 4"/><path d="M12 2v13"/></svg>. If you don't see it, tap <svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="19" cy="12" r="1.2" fill="currentColor"/></svg> next to the address first.</span></li>
+        <li><span>Tap Add to Home Screen <svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>. If it isn't listed, scroll down or tap View More.</span></li>
+        <li><span>Leave Open as Web App on, then tap Add.</span></li>
+        <li><span>Open Key Light from your Home Screen.</span></li>
+      </ol>
+      <p class="install-note">Opened this page from another app? Open it in Safari first.</p>
+      <button type="button" class="install-close" id="install-close">Close</button>
+    </div>
+  </dialog>
+
   <section id="panel" class="panel" aria-label="Light controls">
     <div class="panel-head">
       <div class="modes" role="group" aria-label="Light type">
@@ -101,12 +116,16 @@
     </div>
 
     <div class="panel-extras">
-    <div class="section" id="fx-section" hidden>
+    <div class="section" id="cam-section" hidden>
       <div class="section-head">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0l1.58 6.14a2 2 0 0 0 1.44 1.44l6.14 1.58a.5.5 0 0 1 0 .96l-6.14 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/></svg>
-        <span class="section-title">Camera effects</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+        <span class="section-title">Camera</span>
+        <button type="button" class="section-action" id="cam-switch" aria-label="Switch camera" title="Switch camera (V)" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/><path d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/><circle cx="12" cy="12" r="3"/><path d="m18 22-3-3 3-3"/><path d="m6 2 3 3-3 3"/></svg>
+          Switch
+        </button>
       </div>
-      <div class="section-body">
+      <div class="section-body" id="fx-body">
         <div class="chips" role="group" aria-label="Camera effect">
           <button type="button" class="chip" data-effect="none">None</button>
           <button type="button" class="chip" data-effect="pop">Pop art</button>

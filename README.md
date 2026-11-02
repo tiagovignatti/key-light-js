@@ -19,7 +19,12 @@ The camera mirror, keep-awake and offline install need a secure context (HTTPS o
 ## Fullscreen
 
 - **Desktop, Android, iPad:** the fullscreen button, <kbd>F</kbd>, or double-click the light.
-- **iPhone:** Safari can't make web pages fullscreen. Tap Share → Add to Home Screen, then open Key Light from the home screen icon. It also works offline from there.
+- **iPhone:** browsers on iPhone can't make a page fullscreen, so add Key Light to the Home Screen and open it from there. It opens without browser bars, and works offline. The fullscreen button shows these steps:
+  1. Tap Share. In Safari on iOS 26, it may be behind the ⋯ button next to the address.
+  2. Tap Add to Home Screen. If it isn't listed, scroll down or tap View More.
+  3. Leave Open as Web App on, and tap Add.
+
+  The iPhone status bar stays visible at the top, since iOS doesn't let web apps hide it. Some iOS 26 and 27 versions also draw a band behind it that a web page can't paint over ([WebKit bug 301994](https://bugs.webkit.org/show_bug.cgi?id=301994)).
 
 For the most light, turn the device's own brightness all the way up. A web page can only dim pixels; it can't raise the backlight.
 
@@ -35,7 +40,7 @@ For the most light, turn the device's own brightness all the way up. A web page 
 | Camera mirror | Camera button | <kbd>M</kbd> |
 | Presets 3200K, 4500K, 5600K | Tap | <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> |
 | Saved lights | Tap an empty slot to save, tap to use, hold to replace | <kbd>4</kbd> <kbd>5</kbd> <kbd>6</kbd>, <kbd>Shift</kbd> + number to save |
-
+| Switch camera | Switch, under Camera | <kbd>V</kbd> |
 | DJ sync on or off | DJ sync switch | <kbd>D</kbd> |
 | Next DJ pattern | Pattern buttons | <kbd>P</kbd> |
 | Next camera effect | Effect buttons | <kbd>E</kbd> |
@@ -63,9 +68,11 @@ Echo cancellation is turned off, so music playing from the same computer should 
 
 The screen stays on while the light is open, and the last setup is remembered.
 
-## Camera effects
+## Camera
 
 With the camera mirror on, pick an effect: Pop art, Thermal, Comic, Kaleido, Bulge, Glitch or 8-bit. While DJ sync is on, the effects move with the beat. They run as WebGL shaders, on the camera's full resolution.
+
+When there's more than one camera, Switch appears next to the Camera heading. On phones it flips between the front and back cameras; on computers it steps through the connected cameras. Cameras that face you are mirrored, and the back camera shows the world as it is, in the light and in recordings.
 
 ## Recording
 

@@ -1,7 +1,8 @@
 'use strict';
 
 // Camera effects, one WebGL fragment shader each. A shader reads the camera with
-// cam(uv), which crops it to a centered square and mirrors it, and can animate with:
+// cam(uv), which crops it to a centered square (mirrored for cameras that face you),
+// and can animate with:
 //   u_time   a phase in seconds that runs faster on beats
 //   u_beat   1 on a beat, decaying to 0 (always 0 without DJ sync)
 //   u_beats  a count that steps on every beat (every 2 seconds without DJ sync)
@@ -97,6 +98,7 @@ precision mediump float;
 uniform sampler2D u_video;
 uniform vec2 u_scale;
 uniform vec2 u_offset;
+uniform float u_mirror;
 uniform float u_time;
 uniform float u_beat;
 uniform float u_beats;
@@ -104,7 +106,7 @@ varying vec2 v_uv;
 
 vec4 cam(vec2 uv) {
   uv = clamp(uv, 0.0, 1.0);
-  return texture2D(u_video, u_offset + vec2(1.0 - uv.x, uv.y) * u_scale);
+  return texture2D(u_video, u_offset + vec2(mix(uv.x, 1.0 - uv.x, u_mirror), uv.y) * u_scale);
 }
 float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 vec3 hsv(float h, float s, float v) {
@@ -114,7 +116,7 @@ vec3 hsv(float h, float s, float v) {
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 `;
 
-// Returns draw(video, effect, { time, beat, beats }), which renders one frame into
+// Returns draw(video, effect, { time, beat, beats, mirrored }), which renders one frame into
 // the canvas, or null when WebGL isn't available. The canvas is square and as
 // large as the camera's short side (up to 1440px), so recordings stay sharp.
 function createEffectRenderer(canvas) {
@@ -141,7 +143,7 @@ function createEffectRenderer(canvas) {
     gl.linkProgram(p);
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
     const uniforms = {};
-    for (const u of ['u_video', 'u_scale', 'u_offset', 'u_time', 'u_beat', 'u_beats']) uniforms[u] = gl.getUniformLocation(p, u);
+    for (const u of ['u_video', 'u_scale', 'u_offset', 'u_mirror', 'u_time', 'u_beat', 'u_beats']) uniforms[u] = gl.getUniformLocation(p, u);
     programs[name] = { p, uniforms };
     return programs[name];
   }
@@ -157,7 +159,7 @@ function createEffectRenderer(canvas) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-  return function draw(video, effect, { time, beat, beats }) {
+  return function draw(video, effect, { time, beat, beats, mirrored = true }) {
     const { videoWidth: w, videoHeight: h } = video;
     if (!w || !h) return;
     const size = Math.min(w, h, 1440);
@@ -173,6 +175,7 @@ function createEffectRenderer(canvas) {
     gl.uniform1i(u.u_video, 0);
     gl.uniform2f(u.u_scale, sx, sy);
     gl.uniform2f(u.u_offset, (1 - sx) / 2, (1 - sy) / 2);
+    gl.uniform1f(u.u_mirror, mirrored ? 1 : 0);
     gl.uniform1f(u.u_time, time);
     gl.uniform1f(u.u_beat, beat);
     gl.uniform1f(u.u_beats, beats);
