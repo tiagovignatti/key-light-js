@@ -86,10 +86,16 @@ body.idle .stage {
   pointer-events: none;
 }
 
-.mirror video {
+.mirror video,
+.mirror canvas {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.mirror video {
   object-fit: cover;
   transform: scaleX(-1);
 }
@@ -102,7 +108,7 @@ body.idle .stage {
   left: var(--gutter);
   right: var(--gutter);
   top: max(24px, env(safe-area-inset-top));
-  z-index: 1;
+  z-index: 3;
   width: fit-content;
   margin-inline: auto;
   padding: 9px 18px;
@@ -134,6 +140,8 @@ body.idle .stage {
   max-height: calc(100% - 2 * var(--gutter) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline) transparent;
   padding: 16px 18px 14px;
   border-radius: 26px;
   background: var(--glass);
@@ -148,12 +156,14 @@ body.idle .stage {
 .panel:not(.visible) {
   opacity: 0;
   visibility: hidden;
+  /* Let touches reach the light while the panel fades out. */
+  pointer-events: none;
   transform: translate(-50%, 16px);
   transition: opacity 0.22s ease, transform 0.22s ease, visibility 0s linear 0.22s;
 }
 
 /* Zero specificity, so component rules below override it. */
-:where(.panel) button {
+:where(.panel, .rec-bar, .saved) button {
   appearance: none;
   border: 0;
   margin: 0;
@@ -162,7 +172,7 @@ body.idle .stage {
   cursor: pointer;
 }
 
-:where(.panel) button:focus-visible {
+:where(.panel, .rec-bar, .saved) button:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
@@ -212,9 +222,7 @@ body.idle .stage {
   background: var(--well);
 }
 
-.tool svg,
-.dj-label svg {
-  flex: none;
+.tool svg {
   width: 20px;
   height: 20px;
   fill: none;
@@ -226,7 +234,8 @@ body.idle .stage {
 
 @media (hover: hover) {
   .tool:hover,
-  .preset:hover {
+  .preset:hover,
+  .chip:hover {
     background: var(--well-hover);
   }
 }
@@ -371,26 +380,98 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   border: 1.5px dashed var(--ink-2);
 }
 
-/* ---------- DJ sync ---------- */
+/* ---------- Sections: camera effects, DJ sync, recording ---------- */
 
-.dj {
+.section {
   margin-bottom: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--hairline);
 }
 
-.dj-head {
+.section-head {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-height: 28px;
 }
 
-.dj-label {
+.section-head svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.section-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-weight: 600;
+}
+
+label.section-title {
   cursor: pointer;
+}
+
+.section-toggle {
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.section-toggle .chevron {
+  margin-left: auto;
+  color: var(--ink-2);
+  transition: transform 0.2s ease;
+}
+
+.section-toggle[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+
+.section-body {
+  margin-top: 12px;
+}
+
+.section-note {
+  margin: 8px 0 6px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.section-note strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--well);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.chip[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .dj-status {
@@ -443,41 +524,135 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   transform: translateX(18px);
 }
 
-.dj-body {
-  margin-top: 12px;
+/* ---------- Recording ---------- */
+
+.shape {
+  flex: none;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
 }
 
-.patterns {
+.rec-options {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.rec-sound {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.rec-sound + .switch {
+  margin-left: 0;
+}
+
+.rec-start {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  height: 44px;
+  margin-top: 14px;
+  border-radius: 14px;
+  background: var(--ink);
+  font-weight: 600;
+  color: #1f1d1a;
+}
+
+.rec-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  /* The universal "recording" red. */
+  background: #ff3b30;
+}
+
+.crop-guide {
+  position: absolute;
+  border-radius: 6px;
+  pointer-events: none;
+  /* While choosing a shape, dim what won't be recorded. */
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(255 255 255 / 0.75), 0 0 0 100vmax rgb(0 0 0 / 0.3);
+}
+
+/* While recording, only outline the frame: the area outside still lights you. */
+.crop-guide.recording {
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(255 255 255 / 0.75);
+}
+
+.rec-bar,
+.saved {
+  position: fixed;
+  z-index: 2;
+  top: max(var(--gutter), env(safe-area-inset-top));
+  left: max(var(--gutter), env(safe-area-inset-left));
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  box-shadow: inset 0 0 0 1px var(--hairline), 0 12px 40px rgb(0 0 0 / 0.3);
+}
+
+.rec-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 5px 5px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.rec-bar .rec-dot {
+  animation: rec-blink 1.2s steps(1) infinite;
+}
+
+@keyframes rec-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.rec-bar button,
+.saved-actions button {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--well-hover);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.saved {
+  max-width: min(420px, calc(100% - 2 * var(--gutter)));
+  padding: 12px 14px;
+  border-radius: 18px;
+}
+
+.saved p {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.saved p span {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.saved-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.pattern {
-  height: 34px;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: var(--well);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-2);
-}
-
-.pattern[aria-pressed="true"] {
-  background: var(--accent);
-  color: var(--on-accent);
-}
-
-.dj-note {
-  margin: 8px 0 6px;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--ink-2);
-}
-
-.dj-note strong {
-  font-weight: 600;
-  color: var(--ink);
+.saved-actions .primary {
+  background: var(--ink);
+  color: #1f1d1a;
 }
 
 /* ---------- Hints ---------- */
@@ -528,6 +703,46 @@ kbd {
   }
 }
 
+/* Wide screens: light controls on the left, camera, DJ and recording on the right. */
+@media (min-width: 880px) {
+  .panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    column-gap: 28px;
+    width: min(860px, calc(100% - 2 * var(--gutter)));
+  }
+
+  .panel-head,
+  .hint {
+    grid-column: 1 / -1;
+  }
+
+  .presets {
+    margin-bottom: 0;
+  }
+
+  .panel-extras {
+    padding-left: 28px;
+    border-left: 1px solid var(--hairline);
+  }
+
+  /* Only sections that follow a visible section need a divider. */
+  .panel-extras .section {
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .panel-extras .section:not([hidden]) ~ .section {
+    padding-top: 12px;
+    border-top: 1px solid var(--hairline);
+  }
+
+  .hint {
+    margin-top: 12px;
+  }
+}
+
 @media (max-width: 359px) {
   .panel {
     padding-inline: 14px;
@@ -573,5 +788,9 @@ kbd {
   .panel,
   .panel:not(.visible) {
     transition: none !important;
+  }
+
+  .rec-bar .rec-dot {
+    animation: none;
   }
 }

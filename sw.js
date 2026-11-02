@@ -1,11 +1,12 @@
 'use strict';
 
 // Bump when the list of files changes. Contents refresh on their own (network first).
-const CACHE = 'key-light-v1';
+const CACHE = 'key-light-v2';
 const ASSETS = [
   './',
   'index.html',
   'style.css',
+  'effects.js',
   'app.js',
   'manifest.webmanifest',
   'icons/icon.svg',

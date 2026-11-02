@@ -6,7 +6,10 @@ const STORAGE_KEY = 'key-light';
 const DEFAULTS = {
   mode: 'white', kelvin: 4500, hue: 210, sat: 60, brightness: 100, softbox: false,
   djPattern: 'spectrum', djSensitivity: 60,
+  camEffect: 'none', recCrop: '9:16', recQuality: 1080, recSound: true,
 };
+// Recording shapes as width / height; 0 means the window's own shape.
+const CROPS = { '9:16': 9 / 16, '4:5': 4 / 5, '1:1': 1, '16:9': 16 / 9, screen: 0 };
 // Size of one nudge step (fine adjustment); a coarse step is five of these.
 const STEP = { brightness: 1, kelvin: 50, hue: 1 };
 // Beats closer than this are ignored, so DJ sync never flashes more than three
@@ -117,6 +120,10 @@ function sanitize(s) {
     softbox: s.softbox === true,
     djPattern: s.djPattern in PATTERNS ? s.djPattern : DEFAULTS.djPattern,
     djSensitivity: clamp(Math.round(toNumber(s.djSensitivity, DEFAULTS.djSensitivity)), 0, 100),
+    camEffect: s.camEffect in EFFECTS ? s.camEffect : DEFAULTS.camEffect,
+    recCrop: s.recCrop in CROPS ? s.recCrop : DEFAULTS.recCrop,
+    recQuality: +s.recQuality === 2160 ? 2160 : 1080,
+    recSound: s.recSound !== false,
   };
 }
 
@@ -204,6 +211,26 @@ const djBeat = $('#dj-beat');
 const djNote = $('#dj-note');
 const djWarning = $('#dj-warning');
 const patternButtons = $$('[data-pattern]');
+const mirrorCanvas = $('#mirror-canvas');
+const fxSection = $('#fx-section');
+const effectButtons = $$('[data-effect]');
+const cropGuide = $('#crop-guide');
+const recToggle = $('#rec-toggle');
+const recBody = $('#rec-body');
+const cropButtons = $$('[data-crop]');
+const qualityButtons = $$('[data-quality]');
+const screenShape = $('#screen-shape');
+const recSoundBtn = $('#rec-sound');
+const recStartBtn = $('#rec-start');
+const recStartLabel = $('#rec-start-label');
+const recBar = $('#rec-bar');
+const recTime = $('#rec-time');
+const recStopBtn = $('#rec-stop');
+const savedEl = $('#saved');
+const savedInfo = $('#saved-info');
+const saveBtn = $('#save-btn');
+const shareBtn = $('#share-btn');
+const discardBtn = $('#discard-btn');
 const sliders = {
   brightness: $('#brightness'), kelvin: $('#kelvin'), hue: $('#hue'), sat: $('#sat'),
   djSensitivity: $('#dj-sensitivity'),
@@ -213,7 +240,12 @@ const outputs = {
   djSensitivity: $('#dj-sensitivity-out'),
 };
 
-const paint = (rgb) => root.style.setProperty('--light', rgbCss(rgb));
+// The light's current color, also read by the recorder.
+let lightNow = [0, 0, 0];
+function paint(rgb) {
+  lightNow = rgb;
+  root.style.setProperty('--light', rgbCss(rgb));
+}
 
 function setSlider(name, value, label, thumb, track) {
   const slider = sliders[name];
@@ -250,6 +282,12 @@ function render(animate = false) {
   djNote.textContent = pattern.note;
   djWarning.textContent = pattern.warning || '';
   djWarning.hidden = !pattern.warning;
+
+  for (const btn of effectButtons) btn.setAttribute('aria-pressed', btn.dataset.effect === state.camEffect);
+  for (const btn of cropButtons) btn.setAttribute('aria-pressed', btn.dataset.crop === state.recCrop);
+  for (const btn of qualityButtons) btn.setAttribute('aria-pressed', +btn.dataset.quality === state.recQuality);
+  recSoundBtn.setAttribute('aria-checked', state.recSound);
+  syncCropGuide();
 
   for (const el of modeOnly) el.hidden = el.dataset.modeOnly !== state.mode;
   for (const el of hintAxis) el.textContent = state.mode === 'white' ? 'temperature' : 'hue';
@@ -319,12 +357,14 @@ function scheduleHide(ms = 4000) {
 function showPanel(ms) {
   panel.classList.add('visible');
   scheduleHide(ms);
+  syncCropGuide();
 }
 
 function hidePanel() {
   clearTimeout(hideTimer);
   if (panel.contains(document.activeElement)) document.activeElement.blur();
   panel.classList.remove('visible');
+  syncCropGuide();
 }
 
 function togglePanel() {
@@ -465,6 +505,29 @@ for (const btn of patternButtons) {
   btn.addEventListener('click', () => setState({ djPattern: btn.dataset.pattern }));
 }
 
+for (const btn of effectButtons) {
+  btn.addEventListener('click', () => setState({ camEffect: btn.dataset.effect }));
+}
+for (const btn of cropButtons) {
+  btn.addEventListener('click', () => setState({ recCrop: btn.dataset.crop }));
+}
+for (const btn of qualityButtons) {
+  btn.addEventListener('click', () => setState({ recQuality: btn.dataset.quality }));
+}
+
+recToggle.addEventListener('click', () => {
+  const open = recToggle.getAttribute('aria-expanded') !== 'true';
+  recToggle.setAttribute('aria-expanded', open);
+  recBody.hidden = !open;
+  syncCropGuide();
+});
+recSoundBtn.addEventListener('click', () => setState({ recSound: !state.recSound }));
+recStartBtn.addEventListener('click', () => (rec.recorder ? stopRecording() : startRecording()));
+recStopBtn.addEventListener('click', stopRecording);
+saveBtn.addEventListener('click', saveVideo);
+shareBtn.addEventListener('click', shareVideo);
+discardBtn.addEventListener('click', discardVideo);
+
 djBtn.addEventListener('click', () => setDj(!dj.on));
 softboxBtn.addEventListener('click', () => setState({ softbox: !state.softbox }));
 mirrorBtn.addEventListener('click', () => setMirror(!stream));
@@ -519,11 +582,13 @@ async function keepAwake() {
 }
 
 // The lock is dropped whenever the page is hidden. Take the camera and the
-// microphone down too, so they aren't left running in a background tab.
+// microphone down too, so they aren't left running in a background tab, and
+// finish any recording, since hidden pages stop drawing.
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     keepAwake();
   } else {
+    stopRecording();
     if (stream) setMirror(false);
     setDj(false);
   }
@@ -538,6 +603,7 @@ let mirrorPending = false;
 async function setMirror(on) {
   if (mirrorPending) return;
   if (!on) {
+    cancelAnimationFrame(fxRaf);
     stream?.getTracks().forEach((track) => track.stop());
     stream = null;
     mirrorVideo.srcObject = null;
@@ -546,8 +612,16 @@ async function setMirror(on) {
   } else {
     mirrorPending = true;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      // Ask for HD, so recordings stay sharp; browsers fall back to what the camera has.
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      });
       mirrorVideo.srcObject = stream;
+      if (renderEffect) {
+        fxLast = 0;
+        fxRaf = requestAnimationFrame(effectFrame);
+      }
     } catch (err) {
       const message = {
         NotAllowedError: 'Camera access is blocked. Allow it in the site settings to use the mirror.',
@@ -558,7 +632,48 @@ async function setMirror(on) {
     mirrorPending = false;
   }
   mirrorEl.hidden = !stream;
+  fxSection.hidden = !stream || !renderEffect;
   mirrorBtn.setAttribute('aria-pressed', !!stream);
+}
+
+/* ---------- Camera effects ---------- */
+
+let renderEffect = null;
+try {
+  renderEffect = createEffectRenderer(mirrorCanvas);
+} catch (err) {
+  console.warn('Camera effects are unavailable:', err);
+}
+mirrorCanvas.hidden = !renderEffect;
+let fxRaf = 0;
+let fxLast = 0;
+let fxPhase = 0;
+
+function effectFrame(now) {
+  fxRaf = requestAnimationFrame(effectFrame);
+  const dt = fxLast ? Math.min(0.1, (now - fxLast) / 1000) : 0;
+  fxLast = now;
+  const beat = dj.on ? dj.env : 0;
+  // Animations run faster on beats, so the effects jump with the music.
+  fxPhase += dt * (1 + 3 * beat);
+  try {
+    renderEffect(mirrorVideo, state.camEffect, { time: fxPhase, beat, beats: dj.on ? dj.beats : Math.floor(fxPhase / 2) });
+  } catch (err) {
+    // A shader this GPU can't compile: fall back to the plain camera.
+    console.error(err);
+    cancelAnimationFrame(fxRaf);
+    renderEffect = null;
+    mirrorCanvas.hidden = true;
+    fxSection.hidden = true;
+  }
+}
+
+function nextEffect() {
+  if (!stream || !renderEffect) return;
+  const names = Object.keys(EFFECTS);
+  const name = names[(names.indexOf(state.camEffect) + 1) % names.length];
+  setState({ camEffect: name });
+  hud($(`[data-effect="${name}"]`).textContent);
 }
 
 /* ---------- DJ sync ---------- */
@@ -620,7 +735,7 @@ async function setDj(on) {
       on: true, stream, ctx, analyser, bins,
       prev: new Uint8Array(bins.length),
       binHz: ctx.sampleRate / analyser.fftSize,
-      env: 0, hue: 0, hopHue: 0, bpm: 0, intervals: [], lastBeat: 0,
+      env: 0, hue: 0, hopHue: 0, bpm: 0, beats: 0, intervals: [], lastBeat: 0,
       fluxMean: 0, fluxVar: 0,
       loud: makeFollower(), bands: [makeFollower(), makeFollower(), makeFollower()],
       lastFrame: 0, lastAnalysis: 0, lastTheme: 0, status: '',
@@ -682,6 +797,7 @@ function onBeat(now) {
   const interval = (now - dj.lastBeat) / 1000;
   dj.lastBeat = now;
   dj.env = 1;
+  dj.beats++;
   dj.hopHue = (dj.hopHue + 137.5) % 360; // The golden angle keeps consecutive colors far apart.
   if (interval > 2) {
     dj.intervals = [];
@@ -739,6 +855,228 @@ function nextPattern() {
   hud(PATTERNS[name].warning ? `${label}. ${PATTERNS[name].warning}` : label, PATTERNS[name].warning ? 3500 : 1200);
 }
 
+/* ---------- Recording ---------- */
+
+// Recordings aren't screen captures: every frame, the light, softbox and camera are
+// redrawn into an offscreen canvas at the output size. That keeps them sharp at any
+// resolution, works on phones, and leaves the controls out.
+const rec = { recorder: null, pending: false, result: null };
+
+// The part of the window that gets recorded: the largest rectangle of the given
+// shape, centered on the camera mirror as far as the window allows.
+function cropRect(aspect = CROPS[state.recCrop] || innerWidth / innerHeight) {
+  const w = Math.min(innerWidth, innerHeight * aspect);
+  const h = w / aspect;
+  return { x: (innerWidth - w) / 2, y: clamp(innerHeight * 0.45 - h / 2, 0, innerHeight - h), w, h };
+}
+
+// The short side is the quality setting; the long side is capped at 3840 pixels,
+// the most H.264 encoders accept.
+function outputSize(aspect) {
+  const even = (n) => Math.round(n / 2) * 2;
+  const ratio = Math.max(aspect, 1 / aspect);
+  const short = Math.min(state.recQuality, 3840 / ratio);
+  return aspect < 1 ? [even(short), even(short * ratio)] : [even(short * ratio), even(short)];
+}
+
+function syncCropGuide() {
+  const recording = !!rec.recorder;
+  const choosing = recToggle.getAttribute('aria-expanded') === 'true' && panel.classList.contains('visible');
+  const crop = cropRect(recording ? rec.aspect : undefined);
+  cropGuide.hidden = !(recording || choosing) || (crop.w >= innerWidth - 1 && crop.h >= innerHeight - 1);
+  cropGuide.classList.toggle('recording', recording);
+  Object.assign(cropGuide.style, { left: `${crop.x}px`, top: `${crop.y}px`, width: `${crop.w}px`, height: `${crop.h}px` });
+
+  // The Screen chip's icon takes the window's shape.
+  const scale = Math.min(20 / innerWidth, 16 / innerHeight);
+  Object.assign(screenShape.style, { width: `${Math.round(innerWidth * scale)}px`, height: `${Math.round(innerHeight * scale)}px` });
+
+  recStartLabel.textContent = recording ? 'Stop recording' : 'Start recording';
+}
+
+addEventListener('resize', syncCropGuide);
+
+// Draws what the window shows, in window coordinates, scaled into the crop.
+function drawScene(ctx, crop, scale) {
+  const W = innerWidth;
+  const H = innerHeight;
+  ctx.setTransform(scale, 0, 0, scale, -crop.x * scale, -crop.y * scale);
+  ctx.fillStyle = rgbCss(lightNow);
+  ctx.fillRect(crop.x, crop.y, crop.w, crop.h);
+
+  if (state.softbox) {
+    // Same as .softbox: an ellipse through the farthest corner, centered at 50% 45%.
+    const cx = W / 2;
+    const cy = H * 0.45;
+    const rx = Math.SQRT2 * cx;
+    const ry = Math.SQRT2 * Math.max(cy, H - cy);
+    const falloff = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    falloff.addColorStop(0.18, 'rgba(0, 0, 0, 0)');
+    falloff.addColorStop(0.55, 'rgba(0, 0, 0, 0.22)');
+    falloff.addColorStop(1, 'rgba(0, 0, 0, 0.62)');
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(rx, ry);
+    ctx.fillStyle = falloff;
+    ctx.fillRect(-cx / rx, -cy / ry, W / rx, H / ry);
+    ctx.restore();
+  }
+
+  if (stream && mirrorVideo.videoWidth) {
+    const r = mirrorEl.getBoundingClientRect();
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(r.x + r.width / 2, r.y + r.height / 2, r.width / 2, 0, 2 * Math.PI);
+    ctx.clip();
+    if (renderEffect) {
+      ctx.drawImage(mirrorCanvas, r.x, r.y, r.width, r.height);
+    } else {
+      // No WebGL: crop the video to a square and mirror it, like the CSS does.
+      const { videoWidth: vw, videoHeight: vh } = mirrorVideo;
+      const side = Math.min(vw, vh);
+      ctx.translate(r.x + r.width, r.y);
+      ctx.scale(-1, 1);
+      ctx.drawImage(mirrorVideo, (vw - side) / 2, (vh - side) / 2, side, side, 0, 0, r.width, r.height);
+    }
+    ctx.restore();
+  }
+}
+
+// MP4 (H.264) plays everywhere, so prefer it; Firefox only records WebM.
+function pickMimeType(withAudio) {
+  const candidates = withAudio
+    ? ['video/mp4;codecs=avc1.640033,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm']
+    : ['video/mp4;codecs=avc1.640033', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || '';
+}
+
+async function startRecording() {
+  if (rec.recorder || rec.pending) return;
+  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
+    hud("This browser can't record video.", 3000);
+    return;
+  }
+  rec.pending = true;
+
+  let audio = null;
+  if (state.recSound) {
+    try {
+      // Share DJ sync's microphone when it's on; otherwise ask for one tuned for voices.
+      audio = dj.on
+        ? dj.stream.getAudioTracks()[0].clone()
+        : (await navigator.mediaDevices.getUserMedia({ audio: true })).getAudioTracks()[0];
+    } catch {
+      hud('Recording without sound: the microphone is unavailable.', 3000);
+    }
+  }
+
+  const aspect = CROPS[state.recCrop] || innerWidth / innerHeight;
+  const [width, height] = outputSize(aspect);
+  const canvas = Object.assign(document.createElement('canvas'), { width, height });
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const crop = cropRect(aspect);
+  drawScene(ctx, crop, width / crop.w);
+
+  const output = canvas.captureStream(30);
+  if (audio) output.addTrack(audio);
+  const mimeType = pickMimeType(!!audio);
+  const chunks = [];
+  let recorder;
+  try {
+    recorder = new MediaRecorder(output, {
+      ...(mimeType && { mimeType }),
+      // About 0.2 bits per pixel: 12 Mbps at 1080p, 50 Mbps at 4K.
+      videoBitsPerSecond: Math.round(width * height * 30 * 0.2),
+      audioBitsPerSecond: 192000,
+    });
+    recorder.addEventListener('dataavailable', (e) => {
+      if (e.data.size) chunks.push(e.data);
+    });
+    recorder.addEventListener('stop', () => finishRecording(chunks, recorder.mimeType || mimeType, width, height));
+    recorder.start(1000);
+  } catch (err) {
+    console.error(err);
+    output.getTracks().forEach((track) => track.stop());
+    hud(`This browser can't record at ${width} × ${height}. Try 1080p.`, 3500);
+    rec.pending = false;
+    return;
+  }
+
+  Object.assign(rec, {
+    recorder, output, ctx, aspect, width, height,
+    pending: false, started: performance.now(), lastDraw: 0,
+    raf: requestAnimationFrame(recordFrame),
+    timer: setInterval(updateRecTime, 250),
+  });
+  discardVideo();
+  updateRecTime();
+  recBar.hidden = false;
+  hidePanel();
+}
+
+function recordFrame(now) {
+  rec.raf = requestAnimationFrame(recordFrame);
+  // About 30 frames a second, whatever the display's refresh rate.
+  if (now - rec.lastDraw < 30) return;
+  rec.lastDraw = now;
+  const crop = cropRect(rec.aspect);
+  drawScene(rec.ctx, crop, rec.width / crop.w);
+}
+
+const formatTime = (seconds) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+
+function updateRecTime() {
+  recTime.textContent = formatTime((performance.now() - rec.started) / 1000);
+}
+
+function stopRecording() {
+  if (!rec.recorder) return;
+  cancelAnimationFrame(rec.raf);
+  clearInterval(rec.timer);
+  rec.duration = (performance.now() - rec.started) / 1000;
+  rec.recorder.stop();
+  rec.output.getTracks().forEach((track) => track.stop());
+  rec.recorder = null;
+  recBar.hidden = true;
+  syncCropGuide();
+}
+
+function finishRecording(chunks, mimeType, width, height) {
+  const type = mimeType.split(';')[0] || 'video/webm';
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  const file = new File(chunks, `key-light-${stamp}.${type === 'video/mp4' ? 'mp4' : 'webm'}`, { type });
+  rec.result = file;
+
+  const megabytes = file.size / 1e6;
+  savedInfo.textContent = `${formatTime(rec.duration)}, ${width} × ${height}, ${megabytes < 10 ? megabytes.toFixed(1) : Math.round(megabytes)} MB`;
+  shareBtn.hidden = !navigator.canShare?.({ files: [file] });
+  savedEl.hidden = false;
+}
+
+function saveVideo() {
+  const url = URL.createObjectURL(rec.result);
+  const link = Object.assign(document.createElement('a'), { href: url, download: rec.result.name });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+async function shareVideo() {
+  try {
+    await navigator.share({ files: [rec.result], title: 'Key Light video' });
+  } catch {
+    // Share sheet dismissed.
+  }
+}
+
+function discardVideo() {
+  rec.result = null;
+  savedEl.hidden = true;
+}
+
 /* ---------- Sharing ---------- */
 
 async function shareLink() {
@@ -791,6 +1129,8 @@ addEventListener('keydown', (e) => {
       m: () => setMirror(!stream),
       d: () => setDj(!dj.on),
       p: nextPattern,
+      e: nextEffect,
+      r: () => (rec.recorder ? stopRecording() : startRecording()),
     }[e.key.toLowerCase()];
     if (!action) return;
     action();

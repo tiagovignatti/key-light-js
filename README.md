@@ -38,6 +38,8 @@ For the most light, turn the device's own brightness all the way up. A web page 
 
 | DJ sync on or off | DJ sync switch | <kbd>D</kbd> |
 | Next DJ pattern | Pattern buttons | <kbd>P</kbd> |
+| Next camera effect | Effect buttons | <kbd>E</kbd> |
+| Start or stop recording | Record video | <kbd>R</kbd> |
 
 Hold <kbd>Shift</kbd> with the arrow keys for fine steps.
 
@@ -61,6 +63,22 @@ Echo cancellation is turned off, so music playing from the same computer should 
 
 The screen stays on while the light is open, and the last setup is remembered.
 
+## Camera effects
+
+With the camera mirror on, pick an effect: Pop art, Thermal, Comic, Kaleido, Bulge, Glitch or 8-bit. While DJ sync is on, the effects move with the beat. They run as WebGL shaders, on the camera's full resolution.
+
+## Recording
+
+Open Record video, pick a shape and a quality, and press Start recording:
+
+- **Shapes:** 9:16 (Reels, TikTok, Shorts), 4:5, 1:1, 16:9 (YouTube), or Screen for the window's own shape. A frame on screen shows what will be recorded.
+- **Quality:** 1080p or 4K (the short side; the long side is capped at 3840 pixels).
+- **Sound:** records the microphone. With DJ sync on, it records the same microphone DJ sync listens to.
+
+Recordings aren't screen captures. Every frame, the light, softbox and camera are drawn again into an offscreen canvas at the output size, so the video is sharp at 4K even on a small screen, works on phones, and never shows the controls. You can open the controls and change the light, DJ pattern or effect while recording.
+
+When you stop, Save video downloads the file (MP4 where the browser supports it, otherwise WebM), and Share opens the share sheet where available, for example to save to Photos on iPhone. Recordings stop when you leave the page.
+
 ## Links
 
 The address always reflects the current light, so you can bookmark or share a setup:
@@ -72,4 +90,5 @@ The address always reflects the current light, so you can bookmark or share a se
 ## Files
 
 - `index.html`, `style.css`, `app.js`: the app
+- `effects.js`: the camera effect shaders
 - `manifest.webmanifest`, `sw.js`, `icons/`: install and offline support. The service worker is network-first, so edits show up on the next load. Bump `CACHE` in `sw.js` when you add or rename files.

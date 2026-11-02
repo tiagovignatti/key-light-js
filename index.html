@@ -14,6 +14,7 @@
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="style.css">
+  <script src="effects.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -21,10 +22,27 @@
     <div id="softbox" class="softbox"></div>
     <div id="mirror" class="mirror" hidden>
       <video id="mirror-video" autoplay muted playsinline></video>
+      <canvas id="mirror-canvas"></canvas>
     </div>
+    <div id="crop-guide" class="crop-guide" hidden></div>
   </div>
 
   <div id="hud" class="hud" role="status" aria-live="polite"></div>
+
+  <div id="rec-bar" class="rec-bar" hidden>
+    <span class="rec-dot"></span>
+    <span id="rec-time">0:00</span>
+    <button type="button" id="rec-stop" title="Stop recording (R)">Stop</button>
+  </div>
+
+  <div id="saved" class="saved" role="region" aria-label="Recording" hidden>
+    <p><strong>Video ready</strong> <span id="saved-info"></span></p>
+    <div class="saved-actions">
+      <button type="button" class="primary" id="save-btn">Save video</button>
+      <button type="button" id="share-btn" hidden>Share</button>
+      <button type="button" id="discard-btn">Discard</button>
+    </div>
+  </div>
 
   <section id="panel" class="panel" aria-label="Light controls">
     <div class="panel-head">
@@ -49,6 +67,7 @@
       </div>
     </div>
 
+    <div class="panel-main">
     <div class="control">
       <label for="brightness">Brightness</label>
       <output id="brightness-out" for="brightness"></output>
@@ -79,30 +98,81 @@
       <button type="button" class="preset slot" data-slot="2"><span class="swatch"></span><span class="preset-label">Save</span></button>
     </div>
 
-    <div class="dj">
-      <div class="dj-head">
-        <label class="dj-label" for="dj-btn">
+    </div>
+
+    <div class="panel-extras">
+    <div class="section" id="fx-section" hidden>
+      <div class="section-head">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0l1.58 6.14a2 2 0 0 0 1.44 1.44l6.14 1.58a.5.5 0 0 1 0 .96l-6.14 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/></svg>
+        <span class="section-title">Camera effects</span>
+      </div>
+      <div class="section-body">
+        <div class="chips" role="group" aria-label="Camera effect">
+          <button type="button" class="chip" data-effect="none">None</button>
+          <button type="button" class="chip" data-effect="pop">Pop art</button>
+          <button type="button" class="chip" data-effect="thermal">Thermal</button>
+          <button type="button" class="chip" data-effect="comic">Comic</button>
+          <button type="button" class="chip" data-effect="kaleido">Kaleido</button>
+          <button type="button" class="chip" data-effect="bulge">Bulge</button>
+          <button type="button" class="chip" data-effect="glitch">Glitch</button>
+          <button type="button" class="chip" data-effect="pixel">8-bit</button>
+        </div>
+        <p class="section-note">Effects move with the beat while DJ sync is on.</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <label class="section-title" for="dj-btn">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
           DJ sync
         </label>
         <span class="dj-status" id="dj-status" hidden><span class="beat" id="dj-beat"></span><span id="dj-bpm"></span></span>
         <button type="button" class="switch" id="dj-btn" role="switch" aria-checked="false" title="Sync the light to music from the microphone (D)"></button>
       </div>
-      <div class="dj-body" id="dj-body" hidden>
-        <div class="patterns" role="group" aria-label="Pattern">
-          <button type="button" class="pattern" data-pattern="spectrum">Spectrum</button>
-          <button type="button" class="pattern" data-pattern="hop">Hop</button>
-          <button type="button" class="pattern" data-pattern="pulse">Pulse</button>
-          <button type="button" class="pattern" data-pattern="flow">Flow</button>
-          <button type="button" class="pattern" data-pattern="strobe">Strobe</button>
+      <div class="section-body" id="dj-body" hidden>
+        <div class="chips" role="group" aria-label="Pattern">
+          <button type="button" class="chip" data-pattern="spectrum">Spectrum</button>
+          <button type="button" class="chip" data-pattern="hop">Hop</button>
+          <button type="button" class="chip" data-pattern="pulse">Pulse</button>
+          <button type="button" class="chip" data-pattern="flow">Flow</button>
+          <button type="button" class="chip" data-pattern="strobe">Strobe</button>
         </div>
-        <p class="dj-note"><span id="dj-note"></span> <strong id="dj-warning" hidden></strong></p>
+        <p class="section-note"><span id="dj-note"></span> <strong id="dj-warning" hidden></strong></p>
         <div class="control">
           <label for="dj-sensitivity">Sensitivity</label>
           <output id="dj-sensitivity-out" for="dj-sensitivity"></output>
           <input type="range" id="dj-sensitivity" min="0" max="100" step="1">
         </div>
       </div>
+    </div>
+
+    <div class="section">
+      <button type="button" class="section-head section-toggle" id="rec-toggle" aria-expanded="false" aria-controls="rec-body">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>
+        <span class="section-title">Record video</span>
+        <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="section-body" id="rec-body" hidden>
+        <div class="chips" role="group" aria-label="Video shape">
+          <button type="button" class="chip" data-crop="9:16" title="Vertical, for Reels, TikTok and Shorts"><span class="shape" style="width: 9px; height: 16px"></span>9:16</button>
+          <button type="button" class="chip" data-crop="4:5" title="Portrait, for feed posts"><span class="shape" style="width: 13px; height: 16px"></span>4:5</button>
+          <button type="button" class="chip" data-crop="1:1" title="Square"><span class="shape" style="width: 15px; height: 15px"></span>1:1</button>
+          <button type="button" class="chip" data-crop="16:9" title="Landscape, for YouTube"><span class="shape" style="width: 20px; height: 11px"></span>16:9</button>
+          <button type="button" class="chip" data-crop="screen" title="The whole window"><span class="shape" id="screen-shape"></span>Screen</button>
+        </div>
+        <div class="rec-options">
+          <div class="chips" role="group" aria-label="Quality">
+            <button type="button" class="chip" data-quality="1080">1080p</button>
+            <button type="button" class="chip" data-quality="2160">4K</button>
+          </div>
+          <label class="rec-sound" for="rec-sound">Sound</label>
+          <button type="button" class="switch" id="rec-sound" role="switch" aria-checked="true"></button>
+        </div>
+        <button type="button" class="rec-start" id="rec-start"><span class="rec-dot"></span><span id="rec-start-label">Start recording</span></button>
+        <p class="section-note">Records the light and the camera, never these controls.</p>
+      </div>
+    </div>
     </div>
 
     <p class="hint hint-touch">Swipe up or down for brightness and sideways for <span class="hint-axis">temperature</span>. Tap the light to show or hide controls.</p>
@@ -112,9 +182,8 @@
         <span><kbd>↑</kbd><kbd>↓</kbd> brightness</span>
         <span><kbd>←</kbd><kbd>→</kbd> <span class="hint-axis">temperature</span></span>
         <span><kbd>F</kbd> fullscreen</span>
-        <span><kbd>1</kbd>–<kbd>6</kbd> presets</span>
         <span><kbd>D</kbd> DJ sync</span>
-        <span><kbd>P</kbd> pattern</span>
+        <span><kbd>R</kbd> record</span>
       </span>
     </p>
   </section>
