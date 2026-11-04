@@ -103,7 +103,9 @@ Press Record. Next to it are the shape, quality and sound; tap them to change:
 
 Recordings aren't screen captures. Every frame, the light, softbox and camera are drawn again into an offscreen canvas at the output size, so the video is sharp at 4K even on a small screen, works on phones, and never shows the controls. You can open the controls and change the light, DJ pattern or effect while recording.
 
-When you stop, Save video downloads the file (MP4 where the browser supports it, otherwise WebM), and Share opens the share sheet where available, for example to save to Photos on iPhone. Recordings stop when you leave the page.
+When you stop, Save video downloads the file, and Share opens the share sheet where available, for example to save to Photos on iPhone. Recordings stop when you leave the page.
+
+The file is an MP4 with H.264 video wherever the browser can write one, which is what WhatsApp, Instagram and the rest expect; the Video ready line says what you got. Sound is AAC where the browser has an encoder, as Safari and Chrome on Windows and macOS do. Chrome on Linux has none and records Opus sound instead, which plays on Android and computers but not on iPhones. Firefox can only write WebM.
 
 ## Links
 

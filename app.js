@@ -1130,12 +1130,36 @@ function drawScene(ctx, crop, scale) {
   }
 }
 
-// MP4 (H.264) plays everywhere, so prefer it; Firefox only records WebM.
+// WhatsApp, Instagram and the rest want H.264 video and AAC sound in an MP4, so
+// that comes first. Browsers without an AAC encoder (Chrome on Linux) get H.264
+// with Opus, which plays on Android and computers but not on iPhones. The codecs
+// are always spelled out: given a bare video/mp4, Chrome quietly muxes VP9 into
+// it. A bare video/mp4 stays as Safari's fallback, where it means H.264 and AAC,
+// and Firefox can only write WebM.
 function pickMimeType(withAudio) {
   const candidates = withAudio
-    ? ['video/mp4;codecs=avc1.640033,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm']
-    : ['video/mp4;codecs=avc1.640033', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+    ? [
+      'video/mp4;codecs=avc1.640033,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2',
+      'video/mp4;codecs=avc1.640033,opus', 'video/mp4;codecs=avc1,opus',
+      'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm',
+    ]
+    : [
+      'video/mp4;codecs=avc1.640033', 'video/mp4;codecs=avc1',
+      'video/mp4', 'video/webm;codecs=vp9', 'video/webm',
+    ];
   return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || '';
+}
+
+// "MP4 (H.264, AAC)" from the recorder's mime type, or just the container when
+// it doesn't name the codecs.
+function describeFormat(mimeType) {
+  const container = mimeType.split(';')[0];
+  const names = { avc1: 'H.264', hvc1: 'HEVC', hev1: 'HEVC', vp09: 'VP9', vp9: 'VP9', vp8: 'VP8', av01: 'AV1', mp4a: 'AAC', opus: 'Opus' };
+  const codecs = (/codecs="?([^";]*)/.exec(mimeType)?.[1] || '').split(',')
+    .map((codec) => names[codec.trim().split('.')[0].toLowerCase()])
+    .filter(Boolean);
+  const label = container === 'video/mp4' ? 'MP4' : container === 'video/webm' ? 'WebM' : container;
+  return codecs.length ? `${label} (${codecs.join(', ')})` : label;
 }
 
 async function startRecording() {
@@ -1238,7 +1262,7 @@ function finishRecording(chunks, mimeType, width, height) {
   rec.result = file;
 
   const megabytes = file.size / 1e6;
-  savedInfo.textContent = `${formatTime(rec.duration)}, ${width} × ${height}, ${megabytes < 10 ? megabytes.toFixed(1) : Math.round(megabytes)} MB`;
+  savedInfo.textContent = `${formatTime(rec.duration)}, ${width} × ${height}, ${megabytes < 10 ? megabytes.toFixed(1) : Math.round(megabytes)} MB, ${describeFormat(mimeType)}`;
   shareBtn.hidden = !navigator.canShare?.({ files: [file] });
   savedEl.hidden = false;
 }
