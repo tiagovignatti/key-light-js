@@ -961,6 +961,38 @@ kbd {
   }
 }
 
+/* ---------- The project, in the panel's bottom corner ---------- */
+
+/* A finger-sized target around a small mark; its negative margins let the mark
+   sit on the content's edges while the target reaches into the padding. */
+.github {
+  align-self: flex-end;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: 2px -8px -8px 0;
+  border-radius: 50%;
+  color: var(--ink-2);
+}
+
+.github svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+@media (hover: hover) {
+  .github:hover {
+    color: var(--ink);
+  }
+}
+
+.github:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
 /* Wide screens have room for the chips to wrap. */
 @media (min-width: 880px) {
   .chips {
