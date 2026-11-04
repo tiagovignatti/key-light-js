@@ -1,8 +1,16 @@
 # Key Light
 
-A fullscreen key light for video calls that runs in the browser. Put a spare phone, tablet or monitor next to your camera and use its screen as a light, with adjustable brightness, color temperature (2500–9000K) and color.
+A fullscreen key light for video calls. It's a web app: open it on a spare phone, tablet or monitor next to your camera and use the screen as a light, with adjustable brightness, color temperature (2500–9000K) and color.
 
 Plain HTML, CSS and JavaScript with no build step and no dependencies.
+
+## What it's for
+
+- **A light for video calls.** Prop a phone or tablet next to your webcam, use a second monitor, or keep a browser window beside the call. It's also a plain light when you need one: a warm reading light, a dim red night light. This is Light mode, and nothing else runs in it: no camera, no microphone.
+- **Filming yourself.** The front camera and the screen face the same way, so one phone lights you and films you. This is Studio mode: the camera comes on, with effects to pick from, and you record in the shape your platform wants.
+- **A light show for music.** In Studio, turn on DJ sync and play music nearby. The light moves with the beat, and so do the fun effects. Put several phones around the room and they move to the same beat, since each one listens for itself.
+
+Switch between Light and Studio at the top of the controls.
 
 ## Run it
 
@@ -14,7 +22,7 @@ python3 -m http.server 8000
 
 Then open <http://localhost:8000>. To use it on other devices, host the folder on any HTTPS static host, such as GitHub Pages.
 
-The camera mirror, keep-awake and offline install need a secure context (HTTPS or `localhost`). Opening `index.html` straight from disk works, but without those.
+The camera, DJ sync, keep-awake and offline install need a secure context (HTTPS or `localhost`). Opening `index.html` straight from disk works, but without those.
 
 ## Fullscreen
 
@@ -26,6 +34,8 @@ The camera mirror, keep-awake and offline install need a secure context (HTTPS o
 
   The iPhone status bar stays visible at the top, since iOS doesn't let web apps hide it. Some iOS 26 and 27 versions also draw a band behind it that a web page can't paint over ([WebKit bug 301994](https://bugs.webkit.org/show_bug.cgi?id=301994)).
 
+  A long press on the Home Screen icon opens Light or Studio directly.
+
 For the most light, turn the device's own brightness all the way up. A web page can only dim pixels; it can't raise the backlight.
 
 ## Controls
@@ -33,24 +43,41 @@ For the most light, turn the device's own brightness all the way up. A web page 
 | | Touch | Mouse and keyboard |
 |---|---|---|
 | Show or hide controls | Tap the light | Click the light, <kbd>Esc</kbd> to hide |
+| Light or Studio | Tap the mode | <kbd>L</kbd>, <kbd>M</kbd> |
 | Brightness | Swipe up or down | Drag up or down, scroll wheel, <kbd>↑</kbd> <kbd>↓</kbd> |
 | Temperature (white) or hue (color) | Swipe sideways | Drag sideways, <kbd>Shift</kbd> + scroll, <kbd>←</kbd> <kbd>→</kbd> |
 | Switch white / color | White and Color buttons | <kbd>C</kbd> |
 | Softbox falloff | Softbox button | <kbd>S</kbd> |
-| Camera mirror | Camera button | <kbd>M</kbd> |
 | Presets 3200K, 4500K, 5600K | Tap | <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> |
 | Saved lights | Tap an empty slot to save, tap to use, hold to replace | <kbd>4</kbd> <kbd>5</kbd> <kbd>6</kbd>, <kbd>Shift</kbd> + number to save |
-| Switch camera | Switch, under Camera | <kbd>V</kbd> |
-| DJ sync on or off | DJ sync switch | <kbd>D</kbd> |
-| Next DJ pattern | Pattern buttons | <kbd>P</kbd> |
+| Camera on or off, in Studio | Camera switch | <kbd>M</kbd> |
+| Switch camera | Switch, next to Camera | <kbd>V</kbd> |
 | Next camera effect | Effect buttons | <kbd>E</kbd> |
-| Start or stop recording | Record video | <kbd>R</kbd> |
+| DJ sync on or off, in Studio | DJ sync switch | <kbd>D</kbd> |
+| Next DJ pattern | Pattern buttons, behind the pattern's name | <kbd>P</kbd> |
+| Start or stop recording, in Studio | Record | <kbd>R</kbd> |
 
-Hold <kbd>Shift</kbd> with the arrow keys for fine steps.
+Hold <kbd>Shift</kbd> with the arrow keys for fine steps. In Studio, temperature, color and the presets are under the Light heading.
 
-## DJ sync
+The screen stays on while the light is open, and the last setup is remembered, mode included. Studio turns the camera on when you enter it; a reload or a link opens with it off, a tap away.
 
-Turn on DJ sync and play music nearby. The light listens through the microphone, finds the beat in the bass, shows the tempo, and moves with the music:
+## Studio
+
+Studio turns the camera on. It shows in a circle in the middle of the light, mirrored like a mirror, and the switch next to Camera turns it off and on.
+
+### Effects
+
+Pick an effect. They run as WebGL shaders, on the camera's full resolution.
+
+- **Smooth** evens out skin while keeping eyes, brows and hair sharp, and adds a little brightness and warmth.
+- **Glow** works like a mist filter on a film lens: highlights bloom into a soft haze, contrast eases and the tones warm.
+- **Pop art, Thermal, Comic, Glitch and 8-bit** are for fun, and move with the beat while DJ sync is on.
+
+When there's more than one camera, Switch appears next to Camera. On phones it flips between the front and back cameras; on computers it steps through the connected cameras. Cameras that face you are mirrored, and the back camera shows the world as it is, in the light and in recordings.
+
+### DJ sync
+
+Turn on DJ sync and play music nearby. The light listens through the microphone, finds the beat in the bass, shows the tempo, and moves with the music. Tap the pattern's name to pick another and to set the sensitivity:
 
 | Pattern | What it does |
 |---|---|
@@ -66,21 +93,9 @@ The light never flashes more than three times a second, the limit WCAG sets for 
 
 Echo cancellation is turned off, so music playing from the same computer should be picked up too. On phones, turning on the microphone may pause music playing in other apps; playing the music from another device avoids that. DJ sync stops when you leave the page, and the audio never leaves your device.
 
-The screen stays on while the light is open, and the last setup is remembered.
+### Recording
 
-## Camera
-
-With the camera mirror on, pick an effect. They run as WebGL shaders, on the camera's full resolution.
-
-- **Smooth** evens out skin while keeping eyes, brows and hair sharp, and adds a little brightness and warmth.
-- **Glow** works like a mist filter on a film lens: highlights bloom into a soft haze, contrast eases and the tones warm.
-- **Pop art, Thermal, Comic, Glitch and 8-bit** are for fun, and move with the beat while DJ sync is on.
-
-When there's more than one camera, Switch appears next to the Camera heading. On phones it flips between the front and back cameras; on computers it steps through the connected cameras. Cameras that face you are mirrored, and the back camera shows the world as it is, in the light and in recordings.
-
-## Recording
-
-Open Record video, pick a shape and a quality, and press Start recording:
+Press Record. Next to it are the shape, quality and sound; tap them to change:
 
 - **Shapes:** 9:16 (Reels, TikTok, Shorts), 4:5, 1:1, 16:9 (YouTube), or Screen for the window's own shape. A frame on screen shows what will be recorded.
 - **Quality:** 1080p or 4K (the short side; the long side is capped at 3840 pixels).
@@ -97,6 +112,7 @@ The address always reflects the current light, so you can bookmark or share a se
 - `#k=4500&b=80`: white light at 4500K, 80% brightness
 - `#h=210&s=60&b=80`: color light at hue 210°, 60% saturation, 80% brightness
 - The softbox falloff is on by default; add `&soft=0` to turn it off
+- Add `&mode=studio` to open in Studio
 
 ## Files
 

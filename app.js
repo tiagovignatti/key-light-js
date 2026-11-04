@@ -3,8 +3,10 @@
 const K_MIN = 2500;
 const K_MAX = 9000;
 const STORAGE_KEY = 'key-light';
+// Light is only the light; Studio adds the camera, effects, DJ sync and recording.
+const MODES = ['light', 'studio'];
 const DEFAULTS = {
-  mode: 'white', kelvin: 4500, hue: 210, sat: 60, brightness: 100, softbox: true,
+  mode: 'light', light: 'white', kelvin: 4500, hue: 210, sat: 60, brightness: 100, softbox: true,
   djPattern: 'spectrum', djSensitivity: 60,
   camEffect: 'none', recCrop: '9:16', recQuality: 1080, recSound: true,
 };
@@ -49,15 +51,16 @@ const rgbCss = ([r, g, b]) => `rgb(${r} ${g} ${b})`;
 const rgbHex = (rgb) => `#${rgb.map((c) => c.toString(16).padStart(2, '0')).join('')}`;
 const isPale = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b > 150;
 
-// A "look" is everything a preset stores: mode, kelvin, hue, sat and brightness.
-const baseRgb = (look) => (look.mode === 'color' ? hsvToRgb(look.hue, look.sat / 100) : kelvinToRgb(look.kelvin));
+// A "look" is everything a preset stores: light (white or color), kelvin, hue, sat
+// and brightness.
+const baseRgb = (look) => (look.light === 'color' ? hsvToRgb(look.hue, look.sat / 100) : kelvinToRgb(look.kelvin));
 const lightRgb = (look) => baseRgb(look).map((c) => Math.round((c * look.brightness) / 100));
-const lookOf = ({ mode, kelvin, hue, sat, brightness }) => ({ mode, kelvin, hue, sat, brightness });
-const describe = (look) => (look.mode === 'color' ? `${look.hue}°` : `${look.kelvin}K`);
+const lookOf = ({ light, kelvin, hue, sat, brightness }) => ({ light, kelvin, hue, sat, brightness });
+const describe = (look) => (look.light === 'color' ? `${look.hue}°` : `${look.kelvin}K`);
 
 function sameLook(a, b) {
-  if (a.mode !== b.mode || a.brightness !== b.brightness) return false;
-  return a.mode === 'white' ? a.kelvin === b.kelvin : a.hue === b.hue && a.sat === b.sat;
+  if (a.light !== b.light || a.brightness !== b.brightness) return false;
+  return a.light === 'white' ? a.kelvin === b.kelvin : a.hue === b.hue && a.sat === b.sat;
 }
 
 /* ---------- DJ patterns ---------- */
@@ -112,7 +115,8 @@ const PATTERNS = {
 
 function sanitize(s) {
   return {
-    mode: s.mode === 'color' ? 'color' : 'white',
+    mode: MODES.includes(s.mode) ? s.mode : DEFAULTS.mode,
+    light: s.light === 'color' ? 'color' : 'white',
     kelvin: clamp(Math.round(toNumber(s.kelvin, DEFAULTS.kelvin) / 50) * 50, K_MIN, K_MAX),
     hue: ((Math.round(toNumber(s.hue, DEFAULTS.hue)) % 360) + 360) % 360,
     sat: clamp(Math.round(toNumber(s.sat, DEFAULTS.sat)), 0, 100),
@@ -128,21 +132,23 @@ function sanitize(s) {
 }
 
 // White light: #k=4500&b=80. Colored light: #h=210&s=60&b=80. Either may add &soft=0
-// to turn off the softbox, which is on by default.
+// to turn off the softbox, which is on by default, and &mode=studio to open in Studio.
 function hashFor(s) {
-  const params = s.mode === 'color' ? { h: s.hue, s: s.sat, b: s.brightness } : { k: s.kelvin, b: s.brightness };
+  const params = s.light === 'color' ? { h: s.hue, s: s.sat, b: s.brightness } : { k: s.kelvin, b: s.brightness };
   if (!s.softbox) params.soft = 0;
+  if (s.mode !== 'light') params.mode = s.mode;
   return new URLSearchParams(params).toString();
 }
 
 function readHash() {
   const params = new URLSearchParams(location.hash.slice(1));
   const s = {};
-  if (params.has('k')) Object.assign(s, { mode: 'white', kelvin: params.get('k') });
-  if (params.has('h')) Object.assign(s, { mode: 'color', hue: params.get('h') });
+  if (params.has('k')) Object.assign(s, { light: 'white', kelvin: params.get('k') });
+  if (params.has('h')) Object.assign(s, { light: 'color', hue: params.get('h') });
   if (params.has('s')) s.sat = params.get('s');
   if (params.has('b')) s.brightness = params.get('b');
   if (Object.keys(s).length) s.softbox = params.get('soft') !== '0';
+  if (params.has('mode')) s.mode = params.get('mode');
   return s;
 }
 
@@ -153,8 +159,18 @@ function load() {
   } catch {
     // Storage blocked or corrupt: start from defaults.
   }
+  const version = saved.version || 1;
   // Before version 2 the softbox was off by default, so a saved "off" wasn't a choice.
-  if (saved.version !== 2) delete saved.state?.softbox;
+  if (version < 2) delete saved.state?.softbox;
+  // Version 3 renamed the light type to "light"; "mode" is now Light or Studio.
+  if (version < 3) {
+    for (const look of [saved.state, ...(saved.slots || [])]) {
+      if (look && 'mode' in look) {
+        look.light = look.mode;
+        delete look.mode;
+      }
+    }
+  }
   return {
     state: sanitize({ ...DEFAULTS, ...saved.state, ...readHash() }),
     slots: [0, 1, 2].map((i) => (saved.slots?.[i] ? lookOf(sanitize(saved.slots[i])) : null)),
@@ -174,7 +190,7 @@ function persist() {
 function flush() {
   clearTimeout(persistTimer);
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 2, state, slots }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 3, state, slots }));
   } catch {
     // Private mode or quota: the URL still carries the settings.
   }
@@ -198,16 +214,20 @@ const mirrorEl = $('#mirror');
 const mirrorVideo = $('#mirror-video');
 const themeColor = $('meta[name="theme-color"]');
 const softboxBtn = $('#softbox-btn');
-const mirrorBtn = $('#mirror-btn');
 const linkBtn = $('#link-btn');
 const fsBtn = $('#fs-btn');
-const modeButtons = $$('[data-mode]');
-const modeOnly = $$('[data-mode-only]');
+const modeButtons = $$('button[data-mode]');
+const lightToggle = $('#light-toggle');
+const lightSummary = $('#light-summary');
+const lightButtons = $$('[data-light]');
+const lightOnly = $$('[data-light-only]');
 const hintAxis = $$('.hint-axis');
 const presetButtons = $$('[data-kelvin]');
 const slotButtons = $$('[data-slot]');
 const djBtn = $('#dj-btn');
-const djBody = $('#dj-body');
+const djSection = $('#dj-section');
+const djToggle = $('#dj-toggle');
+const djPattern = $('#dj-pattern');
 const djStatus = $('#dj-status');
 const djBpm = $('#dj-bpm');
 const djBeat = $('#dj-beat');
@@ -215,13 +235,13 @@ const djNote = $('#dj-note');
 const djWarning = $('#dj-warning');
 const patternButtons = $$('[data-pattern]');
 const mirrorCanvas = $('#mirror-canvas');
-const camSection = $('#cam-section');
+const camBtn = $('#cam-btn');
 const camSwitchBtn = $('#cam-switch');
 const fxBody = $('#fx-body');
 const effectButtons = $$('[data-effect]');
 const cropGuide = $('#crop-guide');
 const recToggle = $('#rec-toggle');
-const recBody = $('#rec-body');
+const recSummary = $('#rec-summary');
 const cropButtons = $$('[data-crop]');
 const qualityButtons = $$('[data-quality]');
 const screenShape = $('#screen-shape');
@@ -285,6 +305,7 @@ function render(animate = false) {
 
   const pattern = PATTERNS[state.djPattern];
   for (const btn of patternButtons) btn.setAttribute('aria-pressed', btn.dataset.pattern === state.djPattern);
+  djPattern.textContent = patternButtons.find((btn) => btn.dataset.pattern === state.djPattern).textContent;
   djNote.textContent = pattern.note;
   djWarning.textContent = pattern.warning || '';
   djWarning.hidden = !pattern.warning;
@@ -295,12 +316,20 @@ function render(animate = false) {
   recSoundBtn.setAttribute('aria-checked', state.recSound);
   syncCropGuide();
 
-  for (const el of modeOnly) el.hidden = el.dataset.modeOnly !== state.mode;
-  for (const el of hintAxis) el.textContent = state.mode === 'white' ? 'temperature' : 'hue';
-  for (const btn of modeButtons) btn.setAttribute('aria-pressed', btn.dataset.mode === state.mode);
-  for (const btn of presetButtons) btn.setAttribute('aria-pressed', state.mode === 'white' && state.kelvin === +btn.dataset.kelvin);
+  recSummary.textContent = [
+    state.recCrop === 'screen' ? 'Screen' : state.recCrop,
+    state.recQuality === 2160 ? '4K' : '1080p',
+    state.recSound ? 'Sound' : 'No sound',
+  ].join(' · ');
+
+  for (const el of lightOnly) el.hidden = el.dataset.lightOnly !== state.light;
+  for (const el of hintAxis) el.textContent = state.light === 'white' ? 'temperature' : 'hue';
+  for (const btn of lightButtons) btn.setAttribute('aria-pressed', btn.dataset.light === state.light);
+  for (const btn of presetButtons) btn.setAttribute('aria-pressed', state.light === 'white' && state.kelvin === +btn.dataset.kelvin);
   slotButtons.forEach((btn, i) => btn.setAttribute('aria-pressed', !!slots[i] && sameLook(slots[i], state)));
   softboxBtn.setAttribute('aria-pressed', state.softbox);
+  lightSummary.textContent = describe(state);
+  syncMode();
 }
 
 function renderSlots() {
@@ -327,13 +356,13 @@ function hud(text, ms = 1200) {
 
 function showReadout(axis) {
   if (axis === 'y') hud(`Brightness ${state.brightness}%`);
-  else if (state.mode === 'white') hud(`Temperature ${state.kelvin}K`);
+  else if (state.light === 'white') hud(`Temperature ${state.kelvin}K`);
   else hud(`Hue ${state.hue}°`);
 }
 
-// y is brightness; x is temperature in white mode and hue in color mode.
+// y is brightness; x is temperature for white light and hue for colored light.
 function nudge(axis, steps) {
-  const key = axis === 'y' ? 'brightness' : state.mode === 'white' ? 'kelvin' : 'hue';
+  const key = axis === 'y' ? 'brightness' : state.light === 'white' ? 'kelvin' : 'hue';
   setState({ [key]: state[key] + steps * STEP[key] });
   showReadout(axis);
 }
@@ -397,6 +426,60 @@ addEventListener('pointercancel', () => {
 panel.addEventListener('input', () => scheduleHide());
 panel.addEventListener('focusin', () => showPanel());
 
+/* ---------- Modes ---------- */
+
+// Entering Studio starts the camera, with the tap as the user gesture browsers
+// want; leaving it stops the camera and DJ sync. A reload or a link opens with
+// them off.
+function setMode(mode) {
+  if (mode === state.mode) return;
+  if (rec.recorder) {
+    hud('Stop the recording before changing mode.', 2500);
+    return;
+  }
+  setState({ mode });
+  for (const toggle of [lightToggle, djToggle, recToggle]) expand(toggle, false);
+  if (mode === 'studio' && !stream) setMirror(true);
+  showPanel();
+}
+
+// The camera and the microphone belong to Studio. Whichever way the mode
+// changed, neither is left running in Light.
+function syncMode() {
+  panel.dataset.mode = state.mode;
+  for (const btn of modeButtons) btn.setAttribute('aria-pressed', btn.dataset.mode === state.mode);
+  if (state.mode === 'light') {
+    if (stream) setMirror(false);
+    if (dj.on) setDj(false);
+  }
+}
+
+// Opens or closes a folded section, such as Light in Studio.
+function expand(toggle, open = toggle.getAttribute('aria-expanded') !== 'true') {
+  toggle.setAttribute('aria-expanded', open);
+  document.getElementById(toggle.getAttribute('aria-controls')).classList.toggle('open', open);
+  syncCropGuide();
+}
+
+// The panel keeps one size in both modes: that of the taller, measured with all a
+// mode can show (the effects, a colored light's saturation), so that switching
+// modes never resizes it. Only opening a fold can make it taller.
+function fitPanel() {
+  const { mode } = panel.dataset;
+  panel.style.setProperty('--panel-height', '0px');
+  panel.classList.add('measuring');
+  let tallest = 0;
+  for (const m of MODES) {
+    panel.dataset.mode = m;
+    tallest = Math.max(tallest, panel.scrollHeight);
+  }
+  panel.classList.remove('measuring');
+  panel.dataset.mode = mode;
+  panel.style.setProperty('--panel-height', `${tallest}px`);
+}
+
+addEventListener('resize', fitPanel);
+
 /* ---------- Gestures on the light ---------- */
 
 const gesture = { id: null };
@@ -427,7 +510,7 @@ stage.addEventListener('pointermove', (e) => {
 
   const { from } = gesture;
   if (gesture.axis === 'y') setState({ brightness: from.brightness - (dy / innerHeight) * 125 });
-  else if (state.mode === 'white') setState({ kelvin: from.kelvin + (dx / innerWidth) * (K_MAX - K_MIN) });
+  else if (state.light === 'white') setState({ kelvin: from.kelvin + (dx / innerWidth) * (K_MAX - K_MIN) });
   else setState({ hue: from.hue + (dx / innerWidth) * 360 });
   showReadout(gesture.axis);
 });
@@ -504,7 +587,11 @@ for (const [name, slider] of Object.entries(sliders)) {
 }
 
 for (const btn of modeButtons) {
-  btn.addEventListener('click', () => setState({ mode: btn.dataset.mode }, true));
+  btn.addEventListener('click', () => setMode(btn.dataset.mode));
+}
+
+for (const btn of lightButtons) {
+  btn.addEventListener('click', () => setState({ light: btn.dataset.light }, true));
 }
 
 for (const btn of patternButtons) {
@@ -521,12 +608,9 @@ for (const btn of qualityButtons) {
   btn.addEventListener('click', () => setState({ recQuality: btn.dataset.quality }));
 }
 
-recToggle.addEventListener('click', () => {
-  const open = recToggle.getAttribute('aria-expanded') !== 'true';
-  recToggle.setAttribute('aria-expanded', open);
-  recBody.hidden = !open;
-  syncCropGuide();
-});
+lightToggle.addEventListener('click', () => expand(lightToggle));
+djToggle.addEventListener('click', () => expand(djToggle));
+recToggle.addEventListener('click', () => expand(recToggle));
 recSoundBtn.addEventListener('click', () => setState({ recSound: !state.recSound }));
 recStartBtn.addEventListener('click', () => (rec.recorder ? stopRecording() : startRecording()));
 recStopBtn.addEventListener('click', stopRecording);
@@ -536,7 +620,7 @@ discardBtn.addEventListener('click', discardVideo);
 
 djBtn.addEventListener('click', () => setDj(!dj.on));
 softboxBtn.addEventListener('click', () => setState({ softbox: !state.softbox }));
-mirrorBtn.addEventListener('click', () => setMirror(!stream));
+camBtn.addEventListener('click', () => setMirror(!stream));
 camSwitchBtn.addEventListener('click', switchCamera);
 linkBtn.addEventListener('click', shareLink);
 fsBtn.addEventListener('click', toggleFullscreen);
@@ -649,12 +733,18 @@ async function setMirror(on) {
   } else {
     mirrorPending = true;
     try {
-      useCamera(await openCamera(camera));
-      if (renderEffect) {
-        fxLast = 0;
-        fxRaf = requestAnimationFrame(effectFrame);
+      const newStream = await openCamera(camera);
+      if (state.mode !== 'studio') {
+        // Another mode was chosen while the camera was opening.
+        newStream.getTracks().forEach((track) => track.stop());
+      } else {
+        useCamera(newStream);
+        if (renderEffect) {
+          fxLast = 0;
+          fxRaf = requestAnimationFrame(effectFrame);
+        }
+        listCameras();
       }
-      listCameras();
     } catch (err) {
       const message = {
         NotAllowedError: 'Camera access is blocked. Allow it in the site settings to use the mirror.',
@@ -668,12 +758,10 @@ async function setMirror(on) {
 }
 
 function syncCamera() {
-  const canSwitch = cameras.length > 1;
   mirrorEl.hidden = !stream;
-  mirrorBtn.setAttribute('aria-pressed', !!stream);
-  camSection.hidden = !stream || (!renderEffect && !canSwitch);
-  camSwitchBtn.hidden = !canSwitch;
-  fxBody.hidden = !renderEffect;
+  camBtn.setAttribute('aria-checked', !!stream);
+  camSwitchBtn.hidden = !stream || cameras.length < 2;
+  fxBody.hidden = !stream || !renderEffect;
 }
 
 // Browsers only list every camera once one is allowed, so ask after opening it.
@@ -811,28 +899,34 @@ async function setDj(on) {
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     });
     await resumed;
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 2048;
-    analyser.smoothingTimeConstant = 0;
-    analyser.minDecibels = -90;
-    analyser.maxDecibels = -10;
-    // Some browsers only process nodes that lead to the speakers, so end in silence.
-    const mute = ctx.createGain();
-    mute.gain.value = 0;
-    ctx.createMediaStreamSource(stream).connect(analyser).connect(mute).connect(ctx.destination);
+    if (state.mode === 'light') {
+      // Light was chosen while the microphone was opening, and Light listens to nothing.
+      stream.getTracks().forEach((track) => track.stop());
+      ctx.close();
+    } else {
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0;
+      analyser.minDecibels = -90;
+      analyser.maxDecibels = -10;
+      // Some browsers only process nodes that lead to the speakers, so end in silence.
+      const mute = ctx.createGain();
+      mute.gain.value = 0;
+      ctx.createMediaStreamSource(stream).connect(analyser).connect(mute).connect(ctx.destination);
 
-    const bins = new Uint8Array(analyser.frequencyBinCount);
-    Object.assign(dj, {
-      on: true, stream, ctx, analyser, bins,
-      prev: new Uint8Array(bins.length),
-      binHz: ctx.sampleRate / analyser.fftSize,
-      env: 0, hue: 0, hopHue: 0, bpm: 0, beats: 0, intervals: [], lastBeat: 0,
-      fluxMean: 0, fluxVar: 0,
-      loud: makeFollower(), bands: [makeFollower(), makeFollower(), makeFollower()],
-      lastFrame: 0, lastAnalysis: 0, lastTheme: 0, status: '',
-    });
-    root.style.setProperty('--fade', '0ms');
-    dj.raf = requestAnimationFrame(djFrame);
+      const bins = new Uint8Array(analyser.frequencyBinCount);
+      Object.assign(dj, {
+        on: true, stream, ctx, analyser, bins,
+        prev: new Uint8Array(bins.length),
+        binHz: ctx.sampleRate / analyser.fftSize,
+        env: 0, hue: 0, hopHue: 0, bpm: 0, beats: 0, intervals: [], lastBeat: 0,
+        fluxMean: 0, fluxVar: 0,
+        loud: makeFollower(), bands: [makeFollower(), makeFollower(), makeFollower()],
+        lastFrame: 0, lastAnalysis: 0, lastTheme: 0, status: '',
+      });
+      root.style.setProperty('--fade', '0ms');
+      dj.raf = requestAnimationFrame(djFrame);
+    }
   } catch (err) {
     ctx.close();
     const message = {
@@ -847,7 +941,7 @@ async function setDj(on) {
 
 function syncDj() {
   djBtn.setAttribute('aria-checked', dj.on);
-  djBody.hidden = !dj.on;
+  djSection.classList.toggle('on', dj.on);
   djStatus.hidden = !dj.on;
 }
 
@@ -972,7 +1066,7 @@ function outputSize(aspect) {
 
 function syncCropGuide() {
   const recording = !!rec.recorder;
-  const choosing = recToggle.getAttribute('aria-expanded') === 'true' && panel.classList.contains('visible');
+  const choosing = state.mode === 'studio' && recToggle.getAttribute('aria-expanded') === 'true' && panel.classList.contains('visible');
   const crop = cropRect(recording ? rec.aspect : undefined);
   cropGuide.hidden = !(recording || choosing) || (crop.w >= innerWidth - 1 && crop.h >= innerHeight - 1);
   cropGuide.classList.toggle('recording', recording);
@@ -982,7 +1076,7 @@ function syncCropGuide() {
   const scale = Math.min(20 / innerWidth, 16 / innerHeight);
   Object.assign(screenShape.style, { width: `${Math.round(innerWidth * scale)}px`, height: `${Math.round(innerHeight * scale)}px` });
 
-  recStartLabel.textContent = recording ? 'Stop recording' : 'Start recording';
+  recStartLabel.textContent = recording ? 'Stop' : 'Record';
 }
 
 addEventListener('resize', syncCropGuide);
@@ -1218,14 +1312,24 @@ addEventListener('keydown', (e) => {
   } else {
     const action = {
       f: toggleFullscreen,
-      c: () => setState({ mode: state.mode === 'white' ? 'color' : 'white' }, true),
+      l: () => setMode('light'),
+      // M opens Studio, and once there switches the camera. D switches DJ sync,
+      // opening Studio first if need be.
+      m: () => (state.mode === 'studio' ? setMirror(!stream) : setMode('studio')),
+      d: () => {
+        if (state.mode !== 'studio') setMode('studio');
+        setDj(!dj.on);
+      },
+      c: () => setState({ light: state.light === 'white' ? 'color' : 'white' }, true),
       s: () => setState({ softbox: !state.softbox }),
-      m: () => setMirror(!stream),
       v: switchCamera,
-      d: () => setDj(!dj.on),
       p: nextPattern,
       e: nextEffect,
-      r: () => (rec.recorder ? stopRecording() : startRecording()),
+      r: () => {
+        if (state.mode !== 'studio') hud('Recording is in Studio: press M.', 2500);
+        else if (rec.recorder) stopRecording();
+        else startRecording();
+      },
     }[e.key.toLowerCase()];
     if (!action) return;
     action();
@@ -1249,6 +1353,7 @@ for (const btn of presetButtons) {
 renderSlots();
 render();
 syncFullscreen();
+fitPanel();
 showPanel(5000);
 keepAwake();
 

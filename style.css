@@ -143,11 +143,16 @@ body.idle .stage {
   bottom: max(var(--gutter), env(safe-area-inset-bottom));
   width: min(440px, calc(100% - 2 * var(--gutter) - env(safe-area-inset-left) - env(safe-area-inset-right)));
   max-height: calc(100% - 2 * var(--gutter) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  /* One size in every mode: the tallest of them, measured by app.js, so switching never resizes it. */
+  min-height: min(var(--panel-height, 0px), calc(100% - 2 * var(--gutter) - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--hairline) transparent;
-  padding: 16px 18px 14px;
+  --pad: 18px;
+  padding: 16px var(--pad) 14px;
   border-radius: 26px;
   background: var(--glass);
   -webkit-backdrop-filter: blur(24px) saturate(1.2);
@@ -191,23 +196,77 @@ body.idle .stage {
   margin-bottom: 16px;
 }
 
+/* Light or Studio. Fills the row on phones; the tools wrap below when they don't fit. */
 .modes {
-  display: inline-flex;
+  display: flex;
+  flex: 1 1 auto;
+  max-width: 320px;
   padding: 3px;
   border-radius: 999px;
   background: var(--well);
 }
 
 .mode {
-  padding: 7px 14px;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 7px 10px;
   border-radius: 999px;
   background: transparent;
   font-size: 14px;
   font-weight: 600;
+  white-space: nowrap;
   color: var(--ink-2);
 }
 
 .mode[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* Each control lists the modes it belongs to; the rest are hidden. */
+.panel[data-mode="light"] [data-modes]:not([data-modes~="light"]),
+.panel[data-mode="studio"] [data-modes]:not([data-modes~="studio"]) {
+  display: none !important;
+}
+
+/* In Studio, temperature, color and presets fold under the Light heading. */
+.panel[data-mode="studio"] .light-more:not(.open) {
+  display: none;
+}
+
+/* While app.js measures the modes, each shows everything it can, folds aside. */
+.panel.measuring[data-mode="light"] .control[data-light-only] {
+  display: grid !important;
+}
+
+.panel.measuring[data-mode="studio"] #fx-body {
+  display: block !important;
+}
+
+/* Whatever is shorter than the panel, recording sits at its bottom in Studio (and the hint in Light). */
+.panel-side {
+  margin-top: auto;
+}
+
+/* White or colored light. */
+.kinds {
+  display: inline-flex;
+  justify-self: start;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--well);
+}
+
+.kind {
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.kind[aria-pressed="true"] {
   background: var(--accent);
   color: var(--on-accent);
 }
@@ -463,6 +522,17 @@ label.section-title {
   transform: rotate(180deg);
 }
 
+.section-value {
+  margin-left: auto;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.section-value + .chevron {
+  margin-left: 0;
+}
+
 .section-body {
   margin-top: 12px;
 }
@@ -479,13 +549,23 @@ label.section-title {
   color: var(--ink);
 }
 
+/* One row that scrolls sideways, edge to edge. Wide screens wrap instead. */
 .chips {
   display: flex;
-  flex-wrap: wrap;
   gap: 6px;
+  /* Room for focus rings, which the scroll box would otherwise clip. */
+  margin: -3px calc(-1 * var(--pad));
+  padding: 3px var(--pad);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
 }
 
 .chip {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -518,6 +598,30 @@ label.section-title {
   border-radius: 50%;
   background: var(--ink);
   opacity: 0.2;
+}
+
+/* While DJ sync listens, the tempo takes the name's place; the name stays for screen readers. */
+.dj-section.on .dj-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The pattern's name opens the patterns and the sensitivity. */
+.dj-toggle .chevron {
+  margin-left: -2px;
+  transition: transform 0.2s ease;
+}
+
+.dj-toggle[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+
+.dj-body:not(.open) {
+  display: none;
 }
 
 .switch {
@@ -553,6 +657,11 @@ label.section-title {
   transform: translateX(18px);
 }
 
+/* A section action (Switch camera) sits next to the switch, not between it and the title. */
+.section-action:not([hidden]) + .switch {
+  margin-left: 0;
+}
+
 /* ---------- Recording ---------- */
 
 .shape {
@@ -580,17 +689,42 @@ label.section-title {
 }
 
 .rec-start {
-  display: flex;
+  display: inline-flex;
+  flex: none;
   align-items: center;
-  justify-content: center;
   gap: 9px;
-  width: 100%;
-  height: 44px;
-  margin-top: 14px;
-  border-radius: 14px;
+  height: 40px;
+  padding: 0 18px 0 15px;
+  border-radius: 999px;
   background: var(--ink);
   font-weight: 600;
   color: #1f1d1a;
+}
+
+/* Shape, quality and sound, summed up next to the Record button; tap to change them. */
+.rec-toggle {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  min-width: 0;
+  height: 40px;
+  padding-left: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.rec-summary {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rec-body:not(.open) {
+  display: none;
 }
 
 .rec-dot {
@@ -782,7 +916,7 @@ label.section-title {
 /* ---------- Hints ---------- */
 
 .hint {
-  margin: 0;
+  margin: auto 0 0; /* At the bottom of the panel, whatever is left over. */
   font-size: 12.5px;
   line-height: 1.55;
   color: var(--ink-2);
@@ -827,53 +961,23 @@ kbd {
   }
 }
 
-/* Wide screens: light controls on the left, camera, DJ and recording on the right. */
+/* Wide screens have room for the chips to wrap. */
 @media (min-width: 880px) {
-  .panel {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-items: start;
-    column-gap: 28px;
-    width: min(860px, calc(100% - 2 * var(--gutter)));
-  }
-
-  .panel-head,
-  .hint {
-    grid-column: 1 / -1;
-  }
-
-  .presets {
-    margin-bottom: 0;
-  }
-
-  .panel-extras {
-    padding-left: 28px;
-    border-left: 1px solid var(--hairline);
-  }
-
-  /* Only sections that follow a visible section need a divider. */
-  .panel-extras .section {
-    padding-top: 0;
-    border-top: 0;
-  }
-
-  .panel-extras .section:not([hidden]) ~ .section {
-    padding-top: 12px;
-    border-top: 1px solid var(--hairline);
-  }
-
-  .hint {
-    margin-top: 12px;
+  .chips {
+    flex-wrap: wrap;
+    margin-inline: 0;
+    padding-inline: 0;
+    overflow: visible;
   }
 }
 
 @media (max-width: 359px) {
   .panel {
-    padding-inline: 14px;
+    --pad: 14px;
   }
 
   .mode {
-    padding-inline: 11px;
+    padding-inline: 6px;
   }
 
   .preset {

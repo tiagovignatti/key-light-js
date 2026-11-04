@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Key Light</title>
-  <meta name="description" content="A fullscreen key light for video calls, with adjustable brightness, color temperature and color.">
+  <meta name="description" content="A key light for video calls. Turn a spare phone, tablet or monitor into a light, a studio for filming yourself, or a light show for music.">
   <meta name="theme-color" content="#000000">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -59,18 +59,15 @@
     </div>
   </dialog>
 
-  <section id="panel" class="panel" aria-label="Light controls">
+  <section id="panel" class="panel" aria-label="Controls" data-mode="light">
     <div class="panel-head">
-      <div class="modes" role="group" aria-label="Light type">
-        <button type="button" class="mode" data-mode="white" title="White light (C)">White</button>
-        <button type="button" class="mode" data-mode="color" title="Colored light (C)">Color</button>
+      <div class="modes" role="group" aria-label="Mode">
+        <button type="button" class="mode" data-mode="light" title="Just the light (L)">Light</button>
+        <button type="button" class="mode" data-mode="studio" title="Camera, DJ sync and recording (M)">Studio</button>
       </div>
       <div class="tools">
         <button type="button" class="tool" id="softbox-btn" aria-label="Softbox falloff" title="Softbox falloff (S)">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><circle cx="12" cy="12" r="8.5" stroke-dasharray="2.2 2.8"/></svg>
-        </button>
-        <button type="button" class="tool" id="mirror-btn" aria-label="Camera mirror" title="Camera mirror (M)">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
         </button>
         <button type="button" class="tool" id="link-btn" aria-label="Share a link to this light" title="Share link">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
@@ -83,126 +80,146 @@
     </div>
 
     <div class="panel-main">
-    <div class="control">
-      <label for="brightness">Brightness</label>
-      <output id="brightness-out" for="brightness"></output>
-      <input type="range" id="brightness" min="1" max="100" step="1">
-    </div>
-    <div class="control" data-mode-only="white">
-      <label for="kelvin">Temperature</label>
-      <output id="kelvin-out" for="kelvin"></output>
-      <input type="range" id="kelvin" min="2500" max="9000" step="50">
-    </div>
-    <div class="control" data-mode-only="color" hidden>
-      <label for="hue">Hue</label>
-      <output id="hue-out" for="hue"></output>
-      <input type="range" id="hue" min="0" max="359" step="1">
-    </div>
-    <div class="control" data-mode-only="color" hidden>
-      <label for="sat">Saturation</label>
-      <output id="sat-out" for="sat"></output>
-      <input type="range" id="sat" min="0" max="100" step="1">
-    </div>
+      <div class="control brightness-control">
+        <label for="brightness">Brightness</label>
+        <output id="brightness-out" for="brightness"></output>
+        <input type="range" id="brightness" min="1" max="100" step="1">
+      </div>
 
-    <div class="presets">
-      <button type="button" class="preset" data-kelvin="3200" title="Tungsten (1)" aria-label="Tungsten, 3200K"><span class="swatch"></span><span class="preset-label">3200K</span></button>
-      <button type="button" class="preset" data-kelvin="4500" title="Neutral (2)" aria-label="Neutral, 4500K"><span class="swatch"></span><span class="preset-label">4500K</span></button>
-      <button type="button" class="preset" data-kelvin="5600" title="Daylight (3)" aria-label="Daylight, 5600K"><span class="swatch"></span><span class="preset-label">5600K</span></button>
-      <button type="button" class="preset slot" data-slot="0"><span class="swatch"></span><span class="preset-label">Save</span></button>
-      <button type="button" class="preset slot" data-slot="1"><span class="swatch"></span><span class="preset-label">Save</span></button>
-      <button type="button" class="preset slot" data-slot="2"><span class="swatch"></span><span class="preset-label">Save</span></button>
-    </div>
-
-    </div>
-
-    <div class="panel-extras">
-    <div class="section" id="cam-section" hidden>
-      <div class="section-head">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
-        <span class="section-title">Camera</span>
-        <button type="button" class="section-action" id="cam-switch" aria-label="Switch camera" title="Switch camera (V)" hidden>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/><path d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/><circle cx="12" cy="12" r="3"/><path d="m18 22-3-3 3-3"/><path d="m6 2 3 3-3 3"/></svg>
-          Switch
+      <!-- In Studio, the rest of the light controls fold under this heading. -->
+      <div class="section light-section" data-modes="studio">
+        <button type="button" class="section-head section-toggle" id="light-toggle" aria-expanded="false" aria-controls="light-more">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+          <span class="section-title">Light</span>
+          <span class="section-value" id="light-summary"></span>
+          <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
         </button>
       </div>
-      <div class="section-body" id="fx-body">
-        <div class="chips" role="group" aria-label="Camera effect">
-          <button type="button" class="chip" data-effect="none">None</button>
-          <button type="button" class="chip" data-effect="smooth" title="Evens out skin, keeps eyes and hair sharp">Smooth</button>
-          <button type="button" class="chip" data-effect="glow" title="A soft, warm haze around highlights, like a mist filter">Glow</button>
-          <button type="button" class="chip" data-effect="pop">Pop art</button>
-          <button type="button" class="chip" data-effect="thermal">Thermal</button>
-          <button type="button" class="chip" data-effect="comic">Comic</button>
-          <button type="button" class="chip" data-effect="glitch">Glitch</button>
-          <button type="button" class="chip" data-effect="pixel">8-bit</button>
-        </div>
-        <p class="section-note">The fun effects move with the beat in DJ sync.</p>
-      </div>
-    </div>
 
-    <div class="section">
-      <div class="section-head">
-        <label class="section-title" for="dj-btn">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-          DJ sync
-        </label>
-        <span class="dj-status" id="dj-status" hidden><span class="beat" id="dj-beat"></span><span id="dj-bpm"></span></span>
-        <button type="button" class="switch" id="dj-btn" role="switch" aria-checked="false" title="Sync the light to music from the microphone (D)"></button>
-      </div>
-      <div class="section-body" id="dj-body" hidden>
-        <div class="chips" role="group" aria-label="Pattern">
-          <button type="button" class="chip" data-pattern="spectrum">Spectrum</button>
-          <button type="button" class="chip" data-pattern="hop">Hop</button>
-          <button type="button" class="chip" data-pattern="pulse">Pulse</button>
-          <button type="button" class="chip" data-pattern="flow">Flow</button>
-          <button type="button" class="chip" data-pattern="strobe">Strobe</button>
-        </div>
-        <p class="section-note"><span id="dj-note"></span> <strong id="dj-warning" hidden></strong></p>
+      <div class="light-more" id="light-more">
         <div class="control">
-          <label for="dj-sensitivity">Sensitivity</label>
-          <output id="dj-sensitivity-out" for="dj-sensitivity"></output>
-          <input type="range" id="dj-sensitivity" min="0" max="100" step="1">
-        </div>
-      </div>
-    </div>
-
-    <div class="section">
-      <button type="button" class="section-head section-toggle" id="rec-toggle" aria-expanded="false" aria-controls="rec-body">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>
-        <span class="section-title">Record video</span>
-        <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-      </button>
-      <div class="section-body" id="rec-body" hidden>
-        <div class="chips" role="group" aria-label="Video shape">
-          <button type="button" class="chip" data-crop="9:16" title="Vertical, for Reels, TikTok and Shorts"><span class="shape" style="width: 9px; height: 16px"></span>9:16</button>
-          <button type="button" class="chip" data-crop="4:5" title="Portrait, for feed posts"><span class="shape" style="width: 13px; height: 16px"></span>4:5</button>
-          <button type="button" class="chip" data-crop="1:1" title="Square"><span class="shape" style="width: 15px; height: 15px"></span>1:1</button>
-          <button type="button" class="chip" data-crop="16:9" title="Landscape, for YouTube"><span class="shape" style="width: 20px; height: 11px"></span>16:9</button>
-          <button type="button" class="chip" data-crop="screen" title="The whole window"><span class="shape" id="screen-shape"></span>Screen</button>
-        </div>
-        <div class="rec-options">
-          <div class="chips" role="group" aria-label="Quality">
-            <button type="button" class="chip" data-quality="1080">1080p</button>
-            <button type="button" class="chip" data-quality="2160">4K</button>
+          <div class="kinds" role="group" aria-label="Light type">
+            <button type="button" class="kind" data-light="white" title="White light (C)">White</button>
+            <button type="button" class="kind" data-light="color" title="Colored light (C)">Color</button>
           </div>
-          <label class="rec-sound" for="rec-sound">Sound</label>
-          <button type="button" class="switch" id="rec-sound" role="switch" aria-checked="true"></button>
+          <output id="kelvin-out" for="kelvin" data-light-only="white"></output>
+          <input type="range" id="kelvin" aria-label="Temperature" min="2500" max="9000" step="50" data-light-only="white">
+          <output id="hue-out" for="hue" data-light-only="color" hidden></output>
+          <input type="range" id="hue" aria-label="Hue" min="0" max="359" step="1" data-light-only="color" hidden>
         </div>
-        <button type="button" class="rec-start" id="rec-start"><span class="rec-dot"></span><span id="rec-start-label">Start recording</span></button>
-        <p class="section-note">Records the light and the camera, never these controls.</p>
+        <div class="control" data-light-only="color" hidden>
+          <label for="sat">Saturation</label>
+          <output id="sat-out" for="sat"></output>
+          <input type="range" id="sat" min="0" max="100" step="1">
+        </div>
+
+        <div class="presets">
+          <button type="button" class="preset" data-kelvin="3200" title="Tungsten (1)" aria-label="Tungsten, 3200K"><span class="swatch"></span><span class="preset-label">3200K</span></button>
+          <button type="button" class="preset" data-kelvin="4500" title="Neutral (2)" aria-label="Neutral, 4500K"><span class="swatch"></span><span class="preset-label">4500K</span></button>
+          <button type="button" class="preset" data-kelvin="5600" title="Daylight (3)" aria-label="Daylight, 5600K"><span class="swatch"></span><span class="preset-label">5600K</span></button>
+          <button type="button" class="preset slot" data-slot="0"><span class="swatch"></span><span class="preset-label">Save</span></button>
+          <button type="button" class="preset slot" data-slot="1"><span class="swatch"></span><span class="preset-label">Save</span></button>
+          <button type="button" class="preset slot" data-slot="2"><span class="swatch"></span><span class="preset-label">Save</span></button>
+        </div>
+      </div>
+
+      <div class="section cam-section" data-modes="studio">
+        <div class="section-head">
+          <label class="section-title" for="cam-btn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+            Camera
+          </label>
+          <button type="button" class="section-action" id="cam-switch" aria-label="Switch camera" title="Switch camera (V)" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/><path d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/><circle cx="12" cy="12" r="3"/><path d="m18 22-3-3 3-3"/><path d="m6 2 3 3-3 3"/></svg>
+            Switch
+          </button>
+          <button type="button" class="switch" id="cam-btn" role="switch" aria-checked="false" title="Camera (M)"></button>
+        </div>
+        <div class="section-body" id="fx-body" hidden>
+          <div class="chips" role="group" aria-label="Camera effect">
+            <button type="button" class="chip" data-effect="none">None</button>
+            <button type="button" class="chip" data-effect="smooth" title="Evens out skin, keeps eyes and hair sharp">Smooth</button>
+            <button type="button" class="chip" data-effect="glow" title="A soft, warm haze around highlights, like a mist filter">Glow</button>
+            <button type="button" class="chip" data-effect="pop">Pop art</button>
+            <button type="button" class="chip" data-effect="thermal">Thermal</button>
+            <button type="button" class="chip" data-effect="comic">Comic</button>
+            <button type="button" class="chip" data-effect="glitch">Glitch</button>
+            <button type="button" class="chip" data-effect="pixel">8-bit</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section dj-section" id="dj-section" data-modes="studio">
+        <div class="section-head">
+          <label class="section-title" for="dj-btn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            <span class="dj-name">DJ sync</span>
+          </label>
+          <!-- While it listens, the tempo stands in for the name. -->
+          <span class="dj-status" id="dj-status" hidden><span class="beat" id="dj-beat"></span><span id="dj-bpm"></span></span>
+          <button type="button" class="section-action dj-toggle" id="dj-toggle" aria-expanded="false" aria-controls="dj-body" title="Pattern and sensitivity">
+            <span id="dj-pattern"></span>
+            <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button type="button" class="switch" id="dj-btn" role="switch" aria-checked="false" title="Sync the light to music from the microphone (D)"></button>
+        </div>
+        <div class="section-body dj-body" id="dj-body">
+          <div class="chips" role="group" aria-label="Pattern">
+            <button type="button" class="chip" data-pattern="spectrum">Spectrum</button>
+            <button type="button" class="chip" data-pattern="hop">Hop</button>
+            <button type="button" class="chip" data-pattern="pulse">Pulse</button>
+            <button type="button" class="chip" data-pattern="flow">Flow</button>
+            <button type="button" class="chip" data-pattern="strobe">Strobe</button>
+          </div>
+          <p class="section-note"><span id="dj-note"></span> <strong id="dj-warning" hidden></strong></p>
+          <div class="control">
+            <label for="dj-sensitivity">Sensitivity</label>
+            <output id="dj-sensitivity-out" for="dj-sensitivity"></output>
+            <input type="range" id="dj-sensitivity" min="0" max="100" step="1">
+          </div>
+        </div>
       </div>
     </div>
+
+    <div class="panel-side" data-modes="studio">
+      <div class="section rec-section">
+        <div class="section-head rec-row">
+          <button type="button" class="rec-start" id="rec-start" title="Record (R)"><span class="rec-dot"></span><span id="rec-start-label">Record</span></button>
+          <button type="button" class="section-toggle rec-toggle" id="rec-toggle" aria-expanded="false" aria-controls="rec-body" title="Shape, quality and sound">
+            <span class="rec-summary" id="rec-summary"></span>
+            <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+        </div>
+        <div class="section-body rec-body" id="rec-body">
+          <div class="chips" role="group" aria-label="Video shape">
+            <button type="button" class="chip" data-crop="9:16" title="Vertical, for Reels, TikTok and Shorts"><span class="shape" style="width: 9px; height: 16px"></span>9:16</button>
+            <button type="button" class="chip" data-crop="4:5" title="Portrait, for feed posts"><span class="shape" style="width: 13px; height: 16px"></span>4:5</button>
+            <button type="button" class="chip" data-crop="1:1" title="Square"><span class="shape" style="width: 15px; height: 15px"></span>1:1</button>
+            <button type="button" class="chip" data-crop="16:9" title="Landscape, for YouTube"><span class="shape" style="width: 20px; height: 11px"></span>16:9</button>
+            <button type="button" class="chip" data-crop="screen" title="The whole window"><span class="shape" id="screen-shape"></span>Screen</button>
+          </div>
+          <div class="rec-options">
+            <div class="chips" role="group" aria-label="Quality">
+              <button type="button" class="chip" data-quality="1080">1080p</button>
+              <button type="button" class="chip" data-quality="2160">4K</button>
+            </div>
+            <label class="rec-sound" for="rec-sound">Sound</label>
+            <button type="button" class="switch" id="rec-sound" role="switch" aria-checked="true"></button>
+          </div>
+          <p class="section-note">Records the light and the camera, never these controls.</p>
+        </div>
+      </div>
     </div>
 
-    <p class="hint hint-touch">Swipe up or down for brightness and sideways for <span class="hint-axis">temperature</span>. Tap the light to show or hide controls.</p>
-    <p class="hint hint-keys">
+    <p class="hint hint-touch" data-modes="light">Swipe the light up or down for brightness, sideways for <span class="hint-axis">temperature</span>. Tap it to hide these controls.</p>
+    <p class="hint hint-keys" data-modes="light">
       Click the light to show or hide controls, or drag on it to adjust.
       <span class="keys">
         <span><kbd>↑</kbd><kbd>↓</kbd> brightness</span>
         <span><kbd>←</kbd><kbd>→</kbd> <span class="hint-axis">temperature</span></span>
         <span><kbd>F</kbd> fullscreen</span>
+        <span><kbd>M</kbd> studio</span>
         <span><kbd>D</kbd> DJ sync</span>
-        <span><kbd>R</kbd> record</span>
       </span>
     </p>
   </section>
